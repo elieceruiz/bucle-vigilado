@@ -53,6 +53,8 @@ with col2:
 
 usar_fecha_hora_manual = st.checkbox("Ingresar fecha y hora manualmente")
 
+fecha_hora = None  # Inicializamos la variable
+
 if usar_fecha_hora_manual:
     fecha = st.date_input("Fecha", datetime.now(colombia).date())
     hora_texto = st.text_input("Hora (HH:MM, formato 24h)", value=datetime.now(colombia).strftime("%H:%M"))
@@ -62,7 +64,6 @@ if usar_fecha_hora_manual:
         fecha_hora = colombia.localize(fecha_hora)
     except ValueError:
         st.error("Formato de hora no válido. Usa HH:MM en formato 24h.")
-        fecha_hora = None
 else:
     fecha_hora = datetime.now(colombia)
 
