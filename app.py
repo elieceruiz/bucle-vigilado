@@ -34,12 +34,7 @@ def obtener_registros(nombre_evento):
     eventos = list(coleccion.find({"evento": nombre_evento}).sort("fecha_hora", -1))
     fechas = [e["fecha_hora"].astimezone(colombia) for e in eventos]
     total = len(fechas)
-    data = [{
-        "N°": total - i,  # Enumeración descendente
-        "Fecha": f.date(),
-        "Hora": f.time()
-    } for i, f in enumerate(fechas)]
-    return pd.DataFrame(data)
+    return pd.DataFrame([{"N°": total - i, "Fecha": f.date(), "Hora": f.time()} for i, f in enumerate(fechas)])
 
 # Interfaz
 st.set_page_config(page_title="🛡️ bucle-vigilado", layout="centered")
@@ -95,7 +90,7 @@ st.subheader("📑 Historial de registros")
 tab1, tab2 = st.tabs(["🪞 A", "💰 B"])
 with tab1:
     df_a = obtener_registros(evento_a)
-    st.dataframe(df_a, use_container_width=True)
+    st.dataframe(df_a, use_container_width=True, hide_index=True)
 with tab2:
     df_b = obtener_registros(evento_b)
-    st.dataframe(df_b, use_container_width=True)
+    st.dataframe(df_b, use_container_width=True, hide_index=True)
