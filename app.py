@@ -3,76 +3,67 @@ from datetime import datetime
 from pymongo import MongoClient
 import pytz
 
-# Configurar zona horaria
-tz = pytz.timezone("America/Bogota")
-now = datetime.now(tz).replace(microsecond=0)
-
-# Conexión a MongoDB Atlas desde secrets
+# Conexión a MongoDB
 MONGO_URI = st.secrets["mongo_uri"]
 client = MongoClient(MONGO_URI)
-db = client["centinela"]
-coleccion_eventos = db["eventos"]
+db = client["bucle_vigilado"]
 
-# Configuración de página
-st.set_page_config(page_title="Centinela del Bucle", layout="centered")
+# Zona horaria de Colombia
+colombia = pytz.timezone("America/Bogota")
 
-st.title("🛡️ Centinela del Bucle")
-st.write("Monitorea tu proceso y mantén la vigilancia del bucle.")
+st.set_page_config(layout="centered")
 
-# Opciones de registro
-evento = st.selectbox("¿Qué deseas registrar?", [
-    "Selecciona una opción...",
-    "La Iniciativa Aquella",
-    "Intercambio sexual con pago"
-])
+st.markdown("## Registro de Eventos")
+evento = st.selectbox("¿Qué vas a registrar?", ["Pago", "La Iniciativa Aquella"])
 
-# Función para calcular la racha
-def calcular_racha(tipo_evento):
-    eventos = list(coleccion_eventos.find({"tipo_evento": tipo_evento}).sort("timestamp", -1))
-    if eventos:
-        ultimo = eventos[0]["timestamp"]
-        diferencia = (now - ultimo).days
-        return diferencia
-    return "Sin registros previos"
+# Opción automática o manual
+modo = st.radio("¿Cómo querés registrar el evento?", ["Automático (ahora)", "Manual (fecha y hora pasadas)"])
 
-if evento != "Selecciona una opción...":
-    st.markdown("### Registro")
+# Registro manual
+if modo == "Manual (fecha y hora pasadas)":
+    fecha = st.date_input("Fecha")
+    hora = st.time_input("Hora")
+    timestamp = colombia.localize(datetime.combine(fecha, hora))
+else:
+    timestamp = datetime.now(colombia)
 
-    if evento == "Intercambio sexual con pago":
-        monto = st.number_input("Monto aproximado (COP)", min_value=0, step=1000)
-        metodo_pago = st.selectbox("Método de pago", ["Efectivo", "Transferencia", "Otro"])
-        lugar = st.text_input("Lugar o zona aproximada")
+# Campo para el monto solo si es "Pago"
+monto = None
+if evento == "Pago":
+    monto = st.number_input("¿Cuánto fue el monto?", min_value=0.0, format="%.2f")
 
-    if st.button("Registrar evento"):
-        registro = {
-            "tipo_evento": evento,
-            "timestamp": now,
-            "registrado_en": now
-        }
+if st.button("Guardar evento"):
+    data = {"timestamp": timestamp}
+    if monto is not None:
+        data["monto"] = monto
 
-        if evento == "Intercambio sexual con pago":
-            registro.update({
-                "monto": monto,
-                "metodo_pago": metodo_pago,
-                "lugar": lugar
-            })
+    db[evento].insert_one(data)
+    st.success(f"✅ Evento registrado para: {evento}")
 
-        coleccion_eventos.insert_one(registro)
-        st.success("✅ Evento registrado con éxito.")
+# Función para calcular racha
+def calcular_racha(nombre_evento):
+    coleccion = db[nombre_evento]
+    ultimo_evento = coleccion.find_one(sort=[("timestamp", -1)])
+    
+    if not ultimo_evento:
+        return "Sin registros"
 
-    # Mostrar racha
-    dias = calcular_racha(evento)
-    st.info(f"📅 Han pasado **{dias} días** desde el último evento de tipo: **{evento}**.")
+    ultimo = ultimo_evento["timestamp"]
+    if isinstance(ultimo, str):
+        try:
+            ultimo = datetime.fromisoformat(ultimo)
+        except ValueError:
+            return "Fecha inválida"
 
-# Mostrar rachas acumuladas
-st.markdown("---")
-st.markdown("### 🧭 Estado actual")
+    now = datetime.now(colombia)
+    diferencia = (now - ultimo).days
+    return f"{diferencia} días desde el último evento"
+
+# Mostrar rachas
+st.markdown("## Rachas actuales")
 col1, col2 = st.columns(2)
 
 with col1:
-    racha_aquella = calcular_racha("La Iniciativa Aquella")
-    st.metric(label="🌀 La Iniciativa Aquella", value=f"{racha_aquella} días")
-
+    st.metric("📆 Pago", calcular_racha("Pago"))
 with col2:
-    racha_pago = calcular_racha("Intercambio sexual con pago")
-    st.metric(label="💸 Intercambio con pago", value=f"{racha_pago} días")
+    st.metric("🌒 La Iniciativa Aquella", calcular_racha("La Iniciativa Aquella"))
