@@ -1,46 +1,20 @@
 import streamlit as st
-from datetime import datetime
 from pymongo import MongoClient
+from datetime import datetime
 import pytz
-
-# Conexión a MongoDB
-MONGO_URI = st.secrets["mongo_uri"]
-client = MongoClient(MONGO_URI)
-db = client["bucle_vigilado"]
 
 # Zona horaria de Colombia
 colombia = pytz.timezone("America/Bogota")
 
-st.set_page_config(layout="centered")
+# Conexión a MongoDB desde secrets
+MONGO_URI = st.secrets["mongo_uri"]
+client = MongoClient(MONGO_URI)
+db = client["bucle_vigilado"]
 
-st.markdown("## Registro de Eventos")
-evento = st.selectbox("¿Qué vas a registrar?", ["Pago", "La Iniciativa Aquella"])
+st.set_page_config(page_title="Bucle Vigilado", layout="centered")
 
-# Opción automática o manual
-modo = st.radio("¿Cómo querés registrar el evento?", ["Automático (ahora)", "Manual (fecha y hora pasadas)"])
+st.markdown("---")
 
-# Registro manual
-if modo == "Manual (fecha y hora pasadas)":
-    fecha = st.date_input("Fecha")
-    hora = st.time_input("Hora")
-    timestamp = colombia.localize(datetime.combine(fecha, hora))
-else:
-    timestamp = datetime.now(colombia)
-
-# Campo para el monto solo si es "Pago"
-monto = None
-if evento == "Pago":
-    monto = st.number_input("¿Cuánto fue el monto?", min_value=0.0, format="%.2f")
-
-if st.button("Guardar evento"):
-    data = {"timestamp": timestamp}
-    if monto is not None:
-        data["monto"] = monto
-
-    db[evento].insert_one(data)
-    st.success(f"✅ Evento registrado para: {evento}")
-
-# Función para calcular racha
 def calcular_racha(nombre_evento):
     coleccion = db[nombre_evento]
     ultimo_evento = coleccion.find_one(sort=[("timestamp", -1)])
@@ -49,21 +23,59 @@ def calcular_racha(nombre_evento):
         return "Sin registros"
 
     ultimo = ultimo_evento["timestamp"]
+
+    # Intentar convertir string a datetime
     if isinstance(ultimo, str):
         try:
             ultimo = datetime.fromisoformat(ultimo)
         except ValueError:
             return "Fecha inválida"
 
+    # Forzar zona horaria Colombia
+    if isinstance(ultimo, datetime):
+        if ultimo.tzinfo is None:
+            ultimo = colombia.localize(ultimo)
+        else:
+            ultimo = ultimo.astimezone(colombia)
+    else:
+        return "Formato inválido"
+
     now = datetime.now(colombia)
     diferencia = (now - ultimo).days
     return f"{diferencia} días desde el último evento"
 
-# Mostrar rachas
-st.markdown("## Rachas actuales")
-col1, col2 = st.columns(2)
+# Registro
+st.title("📌 Registro de eventos")
+evento = st.radio("Seleccioná tipo de evento:", ["💰 Pago por sexo", "🌒 La Iniciativa Aquella"])
+nombre_evento = "Pago" if evento == "💰 Pago por sexo" else "Iniciativa"
 
-with col1:
-    st.metric("📆 Pago", calcular_racha("Pago"))
-with col2:
-    st.metric("🌒 La Iniciativa Aquella", calcular_racha("La Iniciativa Aquella"))
+modo = st.radio("¿Cómo registrar la hora?", ["🕒 Ahora", "📅 Manual"])
+
+if modo == "📅 Manual":
+    fecha = st.date_input("Fecha", datetime.now(colombia).date())
+    hora = st.time_input("Hora", datetime.now(colombia).time())
+    timestamp = colombia.localize(datetime.combine(fecha, hora))
+else:
+    timestamp = datetime.now(colombia)
+
+# Campos extra solo para pagos
+monto = ""
+sitio = ""
+if nombre_evento == "Pago":
+    monto = st.text_input("💵 Monto pagado (opcional)")
+    sitio = st.text_input("📍 Sitio o método (opcional)")
+
+if st.button("Registrar evento"):
+    coleccion = db[nombre_evento]
+    registro = {"timestamp": timestamp}
+    if nombre_evento == "Pago":
+        registro["monto"] = monto
+        registro["sitio"] = sitio
+    coleccion.insert_one(registro)
+    st.success("✅ Evento registrado con éxito.")
+
+st.markdown("---")
+st.subheader("📊 Racha actual")
+col1, col2 = st.columns(2)
+col1.metric("💰 Pago por sexo", calcular_racha("Pago"))
+col2.metric("🌒 La Iniciativa Aquella", calcular_racha("Iniciativa"))
