@@ -33,7 +33,11 @@ def calcular_racha(nombre_evento):
 def obtener_registros(nombre_evento):
     eventos = list(coleccion.find({"evento": nombre_evento}).sort("fecha_hora", -1))
     fechas = [e["fecha_hora"].astimezone(colombia) for e in eventos]
-    return pd.DataFrame([{"Fecha": f.date(), "Hora": f.time()} for f in fechas])
+    return pd.DataFrame([{
+        "N°": i + 1,
+        "Fecha": f.date(),
+        "Hora": f.time()
+    } for i, f in enumerate(fechas)])
 
 # Interfaz
 st.set_page_config(page_title="🛡️ bucle-vigilado", layout="centered")
@@ -52,21 +56,22 @@ with col2:
 
 usar_fecha_hora_manual = st.checkbox("Ingresar fecha y hora manualmente")
 
+fecha_hora = None  # Inicializamos
+
 if usar_fecha_hora_manual:
     fecha = st.date_input("Fecha", datetime.now(colombia).date())
-    hora_texto = st.text_input("Hora (HH:MM, formato 24h)", value=datetime.now(colombia).strftime("%H:%M"))
+    hora = st.time_input("Hora", datetime.now(colombia).time())
     try:
-        hora = datetime.strptime(hora_texto, "%H:%M").time()
-        fecha_hora = datetime.combine(fecha, hora)
-        fecha_hora = colombia.localize(fecha_hora)
-    except ValueError:
-        st.error("Formato de hora no válido. Usa HH:MM en formato 24h.")
-        fecha_hora = None
+        fecha_hora = colombia.localize(datetime.combine(fecha, hora))
+    except Exception as e:
+        st.error(f"Error al combinar fecha y hora: {e}")
 else:
     fecha_hora = datetime.now(colombia)
 
 if st.button("Registrar"):
-    if fecha_hora:
+    if fecha_hora is None:
+        st.warning("Fecha y hora inválidas. Corrige los campos.")
+    else:
         if check_a:
             registrar_evento(evento_a, fecha_hora)
             st.success("🪞 Evento A registrado")
