@@ -1,6 +1,6 @@
 streamlit
 pymongo
 pytz
-python-dateutil
 pandas
+python-dateutil
 streamlit-autorefresh
