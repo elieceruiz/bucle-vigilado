@@ -1,8 +1,10 @@
 import streamlit as st
-from datetime import datetime, time
+from datetime import datetime, timedelta
 from pymongo import MongoClient
 import pytz
 import pandas as pd
+import time
+from dateutil.relativedelta import relativedelta
 
 # Configuración de zona horaria
 colombia = pytz.timezone("America/Bogota")
@@ -19,15 +21,26 @@ def registrar_evento(nombre_evento, fecha_hora):
         "fecha_hora": fecha_hora
     })
 
-# Función para calcular la racha en minutos
-def calcular_racha(nombre_evento):
+# Función para calcular diferencia desde último evento
+def obtener_racha_detallada(nombre_evento):
     eventos = list(coleccion.find({"evento": nombre_evento}).sort("fecha_hora", -1))
     if not eventos:
-        return 0
+        return None
     ultimo = eventos[0]["fecha_hora"].replace(tzinfo=colombia)
     ahora = datetime.now(colombia)
-    diferencia = ahora - ultimo
-    return int(diferencia.total_seconds() // 60)
+    delta = relativedelta(ahora, ultimo)
+    total_min = int((ahora - ultimo).total_seconds() // 60)
+    total_sec = int((ahora - ultimo).total_seconds())
+    return {
+        "minutos": total_min,
+        "segundos": total_sec,
+        "años": delta.years,
+        "meses": delta.months,
+        "días": delta.days,
+        "horas": delta.hours,
+        "min": delta.minutes,
+        "seg": delta.seconds
+    }
 
 # Función para obtener registros
 def obtener_registros(nombre_evento):
@@ -78,13 +91,41 @@ if st.button("Registrar"):
         if not check_a and not check_b:
             st.warning("Selecciona al menos un evento para registrar.")
 
-# Métricas
-st.subheader("⏱️ Racha actual (en minutos)")
-col3, col4 = st.columns(2)
-with col3:
-    st.metric("🪞 A", calcular_racha(evento_a))
-with col4:
-    st.metric("💰 B", calcular_racha(evento_b))
+# Sección racha dinámica
+st.subheader("⏱️ Racha en vivo")
+
+col5, col6 = st.columns(2)
+
+with col5:
+    racha_a = st.empty()
+with col6:
+    racha_b = st.empty()
+
+for _ in range(1000):  # Puedes ajustar la cantidad de actualizaciones si deseas
+    datos_a = obtener_racha_detallada(evento_a)
+    datos_b = obtener_racha_detallada(evento_b)
+
+    if datos_a:
+        racha_a.markdown(f"""
+        ### 🪞 A  
+        **{datos_a['minutos']} minutos**  
+        ⏳ {datos_a['años']} años, {datos_a['meses']} meses, {datos_a['días']} días,  
+        {datos_a['horas']} horas, {datos_a['min']} min, {datos_a['seg']} s
+        """)
+    else:
+        racha_a.markdown("🪞 A: Sin registros.")
+
+    if datos_b:
+        racha_b.markdown(f"""
+        ### 💰 B  
+        **{datos_b['minutos']} minutos**  
+        ⏳ {datos_b['años']} años, {datos_b['meses']} meses, {datos_b['días']} días,  
+        {datos_b['horas']} horas, {datos_b['min']} min, {datos_b['seg']} s
+        """)
+    else:
+        racha_b.markdown("💰 B: Sin registros.")
+
+    time.sleep(1)
 
 # Historial
 st.subheader("📑 Historial de registros")
