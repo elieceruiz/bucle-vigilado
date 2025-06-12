@@ -30,60 +30,63 @@ def calcular_racha(tipo):
     return f"{diferencia} días"
 
 # Función para mostrar historial
-def mostrar_historial(tipo):
-    st.subheader(f"📜 Historial: {tipo}")
+def mostrar_historial(tipo, titulo):
+    st.subheader(titulo)
     registros = list(coleccion.find({"tipo": tipo}).sort("fecha_hora", -1))
     if not registros:
-        st.info("No hay registros todavía.")
+        st.info("No hay datos disponibles.")
     else:
         for r in registros:
             fecha_local = r["fecha_hora"].astimezone(colombia)
             st.markdown(f"- {fecha_local.strftime('%Y-%m-%d %H:%M')}")
 
 # Interfaz
-st.set_page_config(page_title="bucle-vigilado", layout="centered")
-st.markdown("## 🛡️ Centinela del Bucle")
+st.set_page_config(page_title="Registro de Ciclos", layout="centered")
+st.markdown("## ⏳ Registro de Ciclos")
 
-tabs = st.tabs(["🕓 Registrar", "📜 Historial"])
+tabs = st.tabs(["🗓️ Nuevo Registro", "📚 Historial"])
 
 # --- TAB REGISTRO ---
 with tabs[0]:
-    st.markdown("### ¿Qué ocurrió?")
-    tipo_aquella = st.checkbox("✅ La Iniciativa Aquella")
-    tipo_pago = st.checkbox("💸 Pago por sexo")
+    st.markdown("### Registrar un nuevo ciclo")
+    tipo_a = st.checkbox("🪞 Ciclo A")
+    tipo_b = st.checkbox("💸 Ciclo B")
 
-    usar_ahora = st.checkbox("📍 Usar fecha y hora actuales", value=True)
+    usar_ahora = st.checkbox("Usar hora actual", value=True)
 
     if usar_ahora:
         fecha_colombia = datetime.now(colombia)
     else:
-        fecha = st.date_input("📅 Fecha", datetime.now(colombia).date())
-        hora_str = st.text_input("🕐 Hora (HH:MM)", value="00:00")
+        fecha = st.date_input("Fecha", datetime.now(colombia).date())
+        hora_str = st.text_input("Hora (formato HH:MM)", value="00:00")
         try:
             hora = datetime.strptime(hora_str, "%H:%M").time()
             fecha_completa = datetime.combine(fecha, hora)
             fecha_colombia = colombia.localize(fecha_completa)
         except ValueError:
-            st.error("❌ Formato de hora inválido. Usá HH:MM (ej: 14:30)")
+            st.error("❌ Hora inválida. Formato esperado: HH:MM (ej: 14:30)")
             st.stop()
 
-    if tipo_aquella or tipo_pago:
-        if st.button("Registrar evento"):
-            if tipo_aquella:
+    if tipo_a or tipo_b:
+        if st.button("Guardar"):
+            if tipo_a:
                 registrar_evento("La Iniciativa Aquella", fecha_colombia)
-                st.success("✅ Registrado: La Iniciativa Aquella")
-            if tipo_pago:
+                st.success("🪞 Ciclo A registrado")
+            if tipo_b:
                 registrar_evento("Pago por sexo", fecha_colombia)
-                st.success("💸 Registrado: Pago por sexo")
+                st.success("💸 Ciclo B registrado")
 
-# Mostrar métricas
-st.metric("🌒 La Iniciativa Aquella", calcular_racha("La Iniciativa Aquella"))
-st.metric("💸 Pago por sexo", calcular_racha("Pago por sexo"))
+# Métricas
+col1, col2 = st.columns(2)
+with col1:
+    st.metric("🪞 Ciclo A", calcular_racha("La Iniciativa Aquella"))
+with col2:
+    st.metric("💸 Ciclo B", calcular_racha("Pago por sexo"))
 
 # --- TAB HISTORIAL ---
 with tabs[1]:
     col1, col2 = st.columns(2)
     with col1:
-        mostrar_historial("La Iniciativa Aquella")
+        mostrar_historial("La Iniciativa Aquella", "📖 Ciclo A")
     with col2:
-        mostrar_historial("Pago por sexo")
+        mostrar_historial("Pago por sexo", "📘 Ciclo B")
