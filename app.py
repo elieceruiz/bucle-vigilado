@@ -3,8 +3,7 @@ from datetime import datetime, time
 from pymongo import MongoClient
 import pytz
 import pandas as pd
-from dateutil.relativedelta import relativedelta
-import time as t
+import time as t  # Para el bucle de actualización en vivo
 
 # Configuración de zona horaria
 colombia = pytz.timezone("America/Bogota")
@@ -21,36 +20,24 @@ def registrar_evento(nombre_evento, fecha_hora):
         "fecha_hora": fecha_hora
     })
 
-# Función para calcular la racha completa
-def calcular_racha_completa(nombre_evento):
+# Función para calcular la racha detallada
+def calcular_racha_detallada(nombre_evento):
     eventos = list(coleccion.find({"evento": nombre_evento}).sort("fecha_hora", -1))
     if not eventos:
-        return {
-            "minutos": 0,
-            "años": 0,
-            "meses": 0,
-            "días": 0,
-            "horas": 0,
-            "minutos_restantes": 0,
-            "segundos": 0
-        }
-
+        return "0 minutos", (0, 0, 0, 0, 0)
     ultimo = eventos[0]["fecha_hora"].replace(tzinfo=colombia)
     ahora = datetime.now(colombia)
-    diferencia = ahora - ultimo
-    total_minutos = int(diferencia.total_seconds() // 60)
-    total_segundos = int(diferencia.total_seconds())
+    delta = ahora - ultimo
 
-    rdelta = relativedelta(ahora, ultimo)
-    return {
-        "minutos": total_minutos,
-        "años": rdelta.years,
-        "meses": rdelta.months,
-        "días": rdelta.days,
-        "horas": rdelta.hours,
-        "minutos_restantes": rdelta.minutes,
-        "segundos": rdelta.seconds
-    }
+    total_segundos = int(delta.total_seconds())
+    minutos = total_segundos // 60
+    segundos = total_segundos % 60
+    horas = minutos // 60
+    dias = horas // 24
+    meses = dias // 30
+    años = meses // 12
+
+    return f"{minutos} minutos", (años, meses % 12, dias % 30, horas % 24, minutos % 60, segundos)
 
 # Función para obtener registros
 def obtener_registros(nombre_evento):
@@ -101,28 +88,22 @@ if st.button("Registrar"):
         if not check_a and not check_b:
             st.warning("Selecciona al menos un evento para registrar.")
 
-# Métricas en vivo
-st.subheader("⏱️ Racha actual (en vivo)")
+# Métricas en tiempo real
+st.subheader("⏱️ Racha actual en vivo")
 
-def mostrar_racha(nombre_evento, emoji):
-    racha = calcular_racha_completa(nombre_evento)
-    with st.container():
-        st.markdown(f"### {emoji} {nombre_evento}")
-        st.metric("Minutos", racha["minutos"])
-        st.write(f"{racha['años']} años, {racha['meses']} meses, {racha['días']} días, {racha['horas']} horas, {racha['minutos_restantes']} minutos y {racha['segundos']} segundos")
+placeholder = st.empty()
 
-col3, col4 = st.columns(2)
-with col3:
-    mostrar_racha(evento_a, "🪞")
-with col4:
-    mostrar_racha(evento_b, "💰")
-
-# Historial
-st.subheader("📑 Historial de registros")
-tab1, tab2 = st.tabs(["🪞 A", "💰 B"])
-with tab1:
-    df_a = obtener_registros(evento_a)
-    st.dataframe(df_a, use_container_width=True, hide_index=True)
-with tab2:
-    df_b = obtener_registros(evento_b)
-    st.dataframe(df_b, use_container_width=True, hide_index=True)
+while True:
+    with placeholder.container():
+        col3, col4 = st.columns(2)
+        with col3:
+            label_a, (a_años, a_meses, a_dias, a_horas, a_min, a_seg) = calcular_racha_detallada(evento_a)
+            st.metric("🪞 A", label_a)
+            st.write(f"**{a_años}** años, **{a_meses}** meses, **{a_dias}** días")
+            st.write(f"**{a_horas:02}**h **{a_min:02}**m **{a_seg:02}**s")
+        with col4:
+            label_b, (b_años, b_meses, b_dias, b_horas, b_min, b_seg) = calcular_racha_detallada(evento_b)
+            st.metric("💰 B", label_b)
+            st.write(f"**{b_años}** años, **{b_meses}** meses, **{b_dias}** días")
+            st.write(f"**{b_horas:02}**h **{b_min:02}**m **{b_seg:02}**s")
+    t.sleep(1)
