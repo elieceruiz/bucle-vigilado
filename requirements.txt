@@ -3,3 +3,4 @@ pymongo
 pytz
 python-dateutil
 pandas
+streamlit-autorefresh
