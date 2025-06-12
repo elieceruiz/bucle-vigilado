@@ -86,3 +86,4 @@ if mostrar_A:
 if mostrar_B:
     st.write("### 💰 B")
     mostrar_historial("El Intercambio Monetario")
+    
