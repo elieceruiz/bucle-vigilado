@@ -1,16 +1,18 @@
 import streamlit as st
-from datetime import datetime, timedelta
+st.set_page_config(page_title="🛡️ bucle-vigilado", layout="centered")  # 🛑 PRIMERO
+
+from datetime import datetime
 from pymongo import MongoClient
 import pytz
 import pandas as pd
 from dateutil.relativedelta import relativedelta
 from streamlit_autorefresh import st_autorefresh
 
-# Refrescar automáticamente cada 1 segundo
-st_autorefresh(interval=1000, limit=None, key="auto_refresh")
-
 # Configuración de zona horaria
 colombia = pytz.timezone("America/Bogota")
+
+# Recarga automática cada segundo
+st_autorefresh(interval=1000, key="refresh")
 
 # Conexión a MongoDB
 client = MongoClient(st.secrets["mongo_uri"])
@@ -24,38 +26,28 @@ def registrar_evento(nombre_evento, fecha_hora):
         "fecha_hora": fecha_hora
     })
 
-# Función para calcular la racha y descomponerla
-def calcular_desglose_racha(nombre_evento):
+# Función para calcular la racha completa
+def calcular_racha_detallada(nombre_evento):
     eventos = list(coleccion.find({"evento": nombre_evento}).sort("fecha_hora", -1))
     if not eventos:
-        return 0, {"años": 0, "meses": 0, "días": 0, "horas": 0, "minutos": 0, "segundos": 0}
-    
+        return "0 minutos", "0 años, 0 meses, 0 días, 0 horas, 0 minutos, 0 segundos"
     ultimo = eventos[0]["fecha_hora"].astimezone(colombia)
     ahora = datetime.now(colombia)
-    delta_total = ahora - ultimo
-    minutos_totales = int(delta_total.total_seconds() // 60)
-    
-    desglosado = relativedelta(ahora, ultimo)
-    partes = {
-        "años": desglosado.years,
-        "meses": desglosado.months,
-        "días": desglosado.days,
-        "horas": desglosado.hours,
-        "minutos": desglosado.minutes,
-        "segundos": desglosado.seconds
-    }
-    
-    return minutos_totales, partes
+    delta = ahora - ultimo
+    total_minutos = int(delta.total_seconds() // 60)
+
+    rdelta = relativedelta(ahora, ultimo)
+    tiempo_detallado = f"{rdelta.years} años, {rdelta.months} meses, {rdelta.days} días, {rdelta.hours} horas, {rdelta.minutes} minutos, {rdelta.seconds} segundos"
+    return f"{total_minutos} minutos", tiempo_detallado
 
 # Función para obtener registros
 def obtener_registros(nombre_evento):
     eventos = list(coleccion.find({"evento": nombre_evento}).sort("fecha_hora", -1))
     fechas = [e["fecha_hora"].astimezone(colombia) for e in eventos]
     total = len(fechas)
-    return pd.DataFrame([{"N°": total - i, "Fecha": f.date(), "Hora": f.time()} for i, f in enumerate(fechas)])
+    return pd.DataFrame([{"N°": total - i, "Fecha": f.date(), "Hora": f.strftime("%H:%M")} for i, f in enumerate(fechas)])
 
 # Interfaz
-st.set_page_config(page_title="🛡️ bucle-vigilado", layout="centered")
 st.title("🛡️ bucle-vigilado")
 
 # Sección de registro
@@ -70,8 +62,8 @@ with col2:
     check_b = st.checkbox("💰 B", value=False)
 
 usar_fecha_hora_manual = st.checkbox("Ingresar fecha y hora manualmente")
-
 fecha_hora = None
+
 if usar_fecha_hora_manual:
     fecha = st.date_input("Fecha", datetime.now(colombia).date())
     hora_texto = st.text_input("Hora (HH:MM, formato 24h)", value=datetime.now(colombia).strftime("%H:%M"))
@@ -97,22 +89,26 @@ if st.button("Registrar"):
 
 # Métricas
 st.subheader("⏱️ Racha actual")
-for evento, emoji in [(evento_a, "🪞 A"), (evento_b, "💰 B")]:
-    minutos, partes = calcular_desglose_racha(evento)
-    with st.container():
-        st.markdown(f"### {emoji}")
-        st.metric(label="Minutos", value=f"{minutos:,}")
-        st.markdown(
-            f"**{partes['años']} años**, **{partes['meses']} meses**, **{partes['días']} días**, "
-            f"**{partes['horas']} horas**, **{partes['minutos']} minutos**, **{partes['segundos']} segundos**"
-        )
+col3, col4 = st.columns(2)
+
+with col3:
+    minutos_a, detalle_a = calcular_racha_detallada(evento_a)
+    st.metric("🪞 A", minutos_a)
+    st.caption(detalle_a)
+
+with col4:
+    minutos_b, detalle_b = calcular_racha_detallada(evento_b)
+    st.metric("💰 B", minutos_b)
+    st.caption(detalle_b)
 
 # Historial
 st.subheader("📑 Historial de registros")
 tab1, tab2 = st.tabs(["🪞 A", "💰 B"])
+
 with tab1:
     df_a = obtener_registros(evento_a)
     st.dataframe(df_a, use_container_width=True, hide_index=True)
+
 with tab2:
     df_b = obtener_registros(evento_b)
     st.dataframe(df_b, use_container_width=True, hide_index=True)
