@@ -1,10 +1,10 @@
 import streamlit as st
-from datetime import datetime, timedelta
+from datetime import datetime, time
 from pymongo import MongoClient
 import pytz
 import pandas as pd
-import time
 from dateutil.relativedelta import relativedelta
+import time as t
 
 # Configuración de zona horaria
 colombia = pytz.timezone("America/Bogota")
@@ -21,25 +21,35 @@ def registrar_evento(nombre_evento, fecha_hora):
         "fecha_hora": fecha_hora
     })
 
-# Función para calcular diferencia desde último evento
-def obtener_racha_detallada(nombre_evento):
+# Función para calcular la racha completa
+def calcular_racha_completa(nombre_evento):
     eventos = list(coleccion.find({"evento": nombre_evento}).sort("fecha_hora", -1))
     if not eventos:
-        return None
+        return {
+            "minutos": 0,
+            "años": 0,
+            "meses": 0,
+            "días": 0,
+            "horas": 0,
+            "minutos_restantes": 0,
+            "segundos": 0
+        }
+
     ultimo = eventos[0]["fecha_hora"].replace(tzinfo=colombia)
     ahora = datetime.now(colombia)
-    delta = relativedelta(ahora, ultimo)
-    total_min = int((ahora - ultimo).total_seconds() // 60)
-    total_sec = int((ahora - ultimo).total_seconds())
+    diferencia = ahora - ultimo
+    total_minutos = int(diferencia.total_seconds() // 60)
+    total_segundos = int(diferencia.total_seconds())
+
+    rdelta = relativedelta(ahora, ultimo)
     return {
-        "minutos": total_min,
-        "segundos": total_sec,
-        "años": delta.years,
-        "meses": delta.months,
-        "días": delta.days,
-        "horas": delta.hours,
-        "min": delta.minutes,
-        "seg": delta.seconds
+        "minutos": total_minutos,
+        "años": rdelta.years,
+        "meses": rdelta.months,
+        "días": rdelta.days,
+        "horas": rdelta.hours,
+        "minutos_restantes": rdelta.minutes,
+        "segundos": rdelta.seconds
     }
 
 # Función para obtener registros
@@ -91,41 +101,21 @@ if st.button("Registrar"):
         if not check_a and not check_b:
             st.warning("Selecciona al menos un evento para registrar.")
 
-# Sección racha dinámica
-st.subheader("⏱️ Racha en vivo")
+# Métricas en vivo
+st.subheader("⏱️ Racha actual (en vivo)")
 
-col5, col6 = st.columns(2)
+def mostrar_racha(nombre_evento, emoji):
+    racha = calcular_racha_completa(nombre_evento)
+    with st.container():
+        st.markdown(f"### {emoji} {nombre_evento}")
+        st.metric("Minutos", racha["minutos"])
+        st.write(f"{racha['años']} años, {racha['meses']} meses, {racha['días']} días, {racha['horas']} horas, {racha['minutos_restantes']} minutos y {racha['segundos']} segundos")
 
-with col5:
-    racha_a = st.empty()
-with col6:
-    racha_b = st.empty()
-
-for _ in range(1000):  # Puedes ajustar la cantidad de actualizaciones si deseas
-    datos_a = obtener_racha_detallada(evento_a)
-    datos_b = obtener_racha_detallada(evento_b)
-
-    if datos_a:
-        racha_a.markdown(f"""
-        ### 🪞 A  
-        **{datos_a['minutos']} minutos**  
-        ⏳ {datos_a['años']} años, {datos_a['meses']} meses, {datos_a['días']} días,  
-        {datos_a['horas']} horas, {datos_a['min']} min, {datos_a['seg']} s
-        """)
-    else:
-        racha_a.markdown("🪞 A: Sin registros.")
-
-    if datos_b:
-        racha_b.markdown(f"""
-        ### 💰 B  
-        **{datos_b['minutos']} minutos**  
-        ⏳ {datos_b['años']} años, {datos_b['meses']} meses, {datos_b['días']} días,  
-        {datos_b['horas']} horas, {datos_b['min']} min, {datos_b['seg']} s
-        """)
-    else:
-        racha_b.markdown("💰 B: Sin registros.")
-
-    time.sleep(1)
+col3, col4 = st.columns(2)
+with col3:
+    mostrar_racha(evento_a, "🪞")
+with col4:
+    mostrar_racha(evento_b, "💰")
 
 # Historial
 st.subheader("📑 Historial de registros")
