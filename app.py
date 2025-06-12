@@ -1,9 +1,10 @@
 import streamlit as st
-from datetime import datetime, time
+from datetime import datetime, timedelta
 from pymongo import MongoClient
 import pytz
 import pandas as pd
-import time as t  # Para el bucle de actualización en vivo
+from dateutil.relativedelta import relativedelta
+import time
 
 # Configuración de zona horaria
 colombia = pytz.timezone("America/Bogota")
@@ -20,31 +21,30 @@ def registrar_evento(nombre_evento, fecha_hora):
         "fecha_hora": fecha_hora
     })
 
-# Función para calcular la racha detallada
-def calcular_racha_detallada(nombre_evento):
+# Función para calcular la diferencia en años, meses, días, horas, minutos, segundos
+def calcular_racha_completa(nombre_evento):
     eventos = list(coleccion.find({"evento": nombre_evento}).sort("fecha_hora", -1))
     if not eventos:
-        return "0 minutos", (0, 0, 0, 0, 0)
-    ultimo = eventos[0]["fecha_hora"].replace(tzinfo=colombia)
+        return "Sin registros"
+
+    ultimo = eventos[0]["fecha_hora"].astimezone(colombia)
     ahora = datetime.now(colombia)
-    delta = ahora - ultimo
+    
+    rdelta = relativedelta(ahora, ultimo)
+    total_minutos = int((ahora - ultimo).total_seconds() // 60)
 
-    total_segundos = int(delta.total_seconds())
-    minutos = total_segundos // 60
-    segundos = total_segundos % 60
-    horas = minutos // 60
-    dias = horas // 24
-    meses = dias // 30
-    años = meses // 12
-
-    return f"{minutos} minutos", (años, meses % 12, dias % 30, horas % 24, minutos % 60, segundos)
+    return total_minutos, rdelta
 
 # Función para obtener registros
 def obtener_registros(nombre_evento):
     eventos = list(coleccion.find({"evento": nombre_evento}).sort("fecha_hora", -1))
     fechas = [e["fecha_hora"].astimezone(colombia) for e in eventos]
     total = len(fechas)
-    return pd.DataFrame([{"N°": total - i, "Fecha": f.date(), "Hora": f.time()} for i, f in enumerate(fechas)])
+    return pd.DataFrame([{
+        "N°": total - i,
+        "Fecha": f.strftime("%Y-%m-%d"),
+        "Hora": f.strftime("%H:%M:%S")
+    } for i, f in enumerate(fechas)])
 
 # Interfaz
 st.set_page_config(page_title="🛡️ bucle-vigilado", layout="centered")
@@ -63,7 +63,7 @@ with col2:
 
 usar_fecha_hora_manual = st.checkbox("Ingresar fecha y hora manualmente")
 
-fecha_hora = None  # Inicializamos la variable
+fecha_hora = None
 
 if usar_fecha_hora_manual:
     fecha = st.date_input("Fecha", datetime.now(colombia).date())
@@ -88,22 +88,35 @@ if st.button("Registrar"):
         if not check_a and not check_b:
             st.warning("Selecciona al menos un evento para registrar.")
 
-# Métricas en tiempo real
-st.subheader("⏱️ Racha actual en vivo")
+# Métricas de racha con actualización en vivo
+st.subheader("⏱️ Racha actual")
 
-placeholder = st.empty()
+racha_placeholder_a = st.empty()
+racha_placeholder_b = st.empty()
 
-while True:
-    with placeholder.container():
-        col3, col4 = st.columns(2)
-        with col3:
-            label_a, (a_años, a_meses, a_dias, a_horas, a_min, a_seg) = calcular_racha_detallada(evento_a)
-            st.metric("🪞 A", label_a)
-            st.write(f"**{a_años}** años, **{a_meses}** meses, **{a_dias}** días")
-            st.write(f"**{a_horas:02}**h **{a_min:02}**m **{a_seg:02}**s")
-        with col4:
-            label_b, (b_años, b_meses, b_dias, b_horas, b_min, b_seg) = calcular_racha_detallada(evento_b)
-            st.metric("💰 B", label_b)
-            st.write(f"**{b_años}** años, **{b_meses}** meses, **{b_dias}** días")
-            st.write(f"**{b_horas:02}**h **{b_min:02}**m **{b_seg:02}**s")
-    t.sleep(1)
+def mostrar_racha(nombre_evento, placeholder, emoji):
+    total_minutos, rdelta = calcular_racha_completa(nombre_evento)
+    if total_minutos == "Sin registros":
+        placeholder.markdown(f"{emoji} Sin registros")
+        return
+    placeholder.metric(
+        label=f"{emoji} Total: {total_minutos} minutos",
+        value=f"{rdelta.years}a {rdelta.months}m {rdelta.days}d {rdelta.hours}h {rdelta.minutes}m {rdelta.seconds}s"
+    )
+
+mostrar_racha(evento_a, racha_placeholder_a, "🪞 A")
+mostrar_racha(evento_b, racha_placeholder_b, "💰 B")
+
+# Refrescar automáticamente cada segundo (solo en modo local o experimentalmente)
+time.sleep(1)
+st.experimental_rerun()
+
+# Historial
+st.subheader("📑 Historial de registros")
+tab1, tab2 = st.tabs(["🪞 A", "💰 B"])
+with tab1:
+    df_a = obtener_registros(evento_a)
+    st.dataframe(df_a, use_container_width=True, hide_index=True)
+with tab2:
+    df_b = obtener_registros(evento_b)
+    st.dataframe(df_b, use_container_width=True, hide_index=True)
