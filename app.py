@@ -1,81 +1,65 @@
 import streamlit as st
 from pymongo import MongoClient
-from datetime import datetime
+from datetime import datetime, timedelta
 import pytz
 
-# Zona horaria de Colombia
+# Configuración regional
 colombia = pytz.timezone("America/Bogota")
 
-# Conexión a MongoDB desde secrets
+# Conexión a MongoDB
 MONGO_URI = st.secrets["mongo_uri"]
 client = MongoClient(MONGO_URI)
-db = client["bucle_vigilado"]
+db = client["registro_eventos"]
+collection = db["eventos"]
 
 st.set_page_config(page_title="Bucle Vigilado", layout="centered")
 
-st.markdown("---")
+st.markdown("<style>header {visibility: hidden;}</style>", unsafe_allow_html=True)
 
-def calcular_racha(nombre_evento):
-    coleccion = db[nombre_evento]
-    ultimo_evento = coleccion.find_one(sort=[("timestamp", -1)])
-    
-    if not ultimo_evento:
-        return "Sin registros"
+st.title("")  # Eliminamos el encabezado visual
 
-    ultimo = ultimo_evento["timestamp"]
+# Selección del tipo de evento
+evento = st.selectbox("Tipo de evento", ["Pago", "La Iniciativa Aquella"])
 
-    # Intentar convertir string a datetime
-    if isinstance(ultimo, str):
-        try:
-            ultimo = datetime.fromisoformat(ultimo)
-        except ValueError:
-            return "Fecha inválida"
+# Checkbox para ingreso manual de fecha y hora
+use_manual = st.checkbox("Ingresar fecha y hora manualmente")
 
-    # Forzar zona horaria Colombia
-    if isinstance(ultimo, datetime):
-        if ultimo.tzinfo is None:
-            ultimo = colombia.localize(ultimo)
-        else:
-            ultimo = ultimo.astimezone(colombia)
-    else:
-        return "Formato inválido"
-
-    now = datetime.now(colombia)
-    diferencia = (now - ultimo).days
-    return f"{diferencia} días desde el último evento"
-
-# Registro
-st.title("📌 Registro de eventos")
-evento = st.radio("Seleccioná tipo de evento:", ["💰 Pago por sexo", "🌒 La Iniciativa Aquella"])
-nombre_evento = "Pago" if evento == "💰 Pago por sexo" else "Iniciativa"
-
-modo = st.radio("¿Cómo registrar la hora?", ["🕒 Ahora", "📅 Manual"])
-
-if modo == "📅 Manual":
+if use_manual:
     fecha = st.date_input("Fecha", datetime.now(colombia).date())
-    hora = st.time_input("Hora", datetime.now(colombia).time())
+    hora = st.time_input("Hora", datetime.now(colombia).time(), step=1)
     timestamp = colombia.localize(datetime.combine(fecha, hora))
 else:
     timestamp = datetime.now(colombia)
 
-# Campos extra solo para pagos
-monto = ""
-sitio = ""
-if nombre_evento == "Pago":
-    monto = st.text_input("💵 Monto pagado (opcional)")
-    sitio = st.text_input("📍 Sitio o método (opcional)")
+# Campo para el monto (solo si es "Pago")
+monto = None
+if evento == "Pago":
+    monto = st.number_input("Monto (opcional)", min_value=0.0, format="%.2f")
 
-if st.button("Registrar evento"):
-    coleccion = db[nombre_evento]
-    registro = {"timestamp": timestamp}
-    if nombre_evento == "Pago":
+# Botón para registrar el evento
+if st.button("Registrar"):
+    registro = {
+        "evento": evento,
+        "timestamp": timestamp,
+    }
+    if monto is not None:
         registro["monto"] = monto
-        registro["sitio"] = sitio
-    coleccion.insert_one(registro)
-    st.success("✅ Evento registrado con éxito.")
+    collection.insert_one(registro)
+    st.success("✅ Evento registrado exitosamente")
 
-st.markdown("---")
-st.subheader("📊 Racha actual")
+# Función para calcular racha desde el último evento
+def calcular_racha(nombre_evento):
+    registros = list(collection.find({"evento": nombre_evento}).sort("timestamp", -1))
+    if not registros:
+        return "Sin datos"
+    ultimo = registros[0]["timestamp"]
+    now = datetime.now(pytz.utc)
+    diferencia = (now - ultimo).days
+    return f"{diferencia} día(s)"
+
+# Mostrar las rachas
 col1, col2 = st.columns(2)
-col1.metric("💰 Pago por sexo", calcular_racha("Pago"))
-col2.metric("🌒 La Iniciativa Aquella", calcular_racha("Iniciativa"))
+with col1:
+    st.metric("💰 Pago", calcular_racha("Pago"))
+with col2:
+    st.metric("🌒 La Iniciativa Aquella", calcular_racha("La Iniciativa Aquella"))
