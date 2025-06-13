@@ -59,7 +59,7 @@ col1, col2 = st.columns(2)
 with col1:
     check_a = st.checkbox("🪞", value=False)
 with col2:
-    check_b = st.checkbox("💰", value=False)
+    check_b = st.checkbox("💸", value=False)
 
 usar_fecha_hora_manual = st.checkbox("Ingresar fecha y hora manualmente")
 fecha_hora = None
@@ -83,7 +83,7 @@ if st.button("Registrar"):
             st.success("🪞 Evento registrado")
         if check_b:
             registrar_evento(evento_b, fecha_hora)
-            st.success("💰 Evento registrado")
+            st.success("💸 Evento registrado")
         if not check_a and not check_b:
             st.warning("Selecciona al menos un evento para registrar.")
 
@@ -98,12 +98,12 @@ with col3:
 
 with col4:
     minutos_b, detalle_b = calcular_racha_detallada(evento_b)
-    st.metric("💰", minutos_b)
+    st.metric("💸", minutos_b)
     st.caption(detalle_b)
 
 # Historial
 st.subheader("📑 Historial de registros")
-tab1, tab2 = st.tabs(["🪞", "💰"])
+tab1, tab2 = st.tabs(["🪞", "💸"])
 
 with tab1:
     df_a = obtener_registros(evento_a)
