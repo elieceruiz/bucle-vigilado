@@ -57,7 +57,7 @@ evento_b = "La Iniciativa de Pago"
 
 col1, col2 = st.columns(2)
 with col1:
-    check_a = st.checkbox("🪞", value=False)
+    check_a = st.checkbox("✊🏽", value=False)
 with col2:
     check_b = st.checkbox("💸", value=False)
 
@@ -80,7 +80,7 @@ if st.button("Registrar"):
     if fecha_hora:
         if check_a:
             registrar_evento(evento_a, fecha_hora)
-            st.success("🪞 Evento registrado")
+            st.success("✊🏽 Evento registrado")
         if check_b:
             registrar_evento(evento_b, fecha_hora)
             st.success("💸 Evento registrado")
@@ -93,7 +93,7 @@ col3, col4 = st.columns(2)
 
 with col3:
     minutos_a, detalle_a = calcular_racha_detallada(evento_a)
-    st.metric("🪞", minutos_a)
+    st.metric("✊🏽", minutos_a)
     st.caption(detalle_a)
 
 with col4:
@@ -103,7 +103,7 @@ with col4:
 
 # Historial
 st.subheader("📑 Historial de registros")
-tab1, tab2 = st.tabs(["🪞", "💸"])
+tab1, tab2 = st.tabs(["✊🏽", "💸"])
 
 with tab1:
     df_a = obtener_registros(evento_a)
