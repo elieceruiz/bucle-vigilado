@@ -11,7 +11,7 @@ from streamlit_autorefresh import st_autorefresh
 # Configuración de zona horaria
 colombia = pytz.timezone("America/Bogota")
 
-# Recarga automática cada segundo
+# Refrescar cada segundo
 st_autorefresh(interval=1000, key="refresh")
 
 # Conexión a MongoDB
@@ -26,7 +26,7 @@ def registrar_evento(nombre_evento, fecha_hora):
         "fecha_hora": fecha_hora
     })
 
-# Función para calcular la racha completa
+# Calcular racha actual
 def calcular_racha_detallada(nombre_evento):
     eventos = list(coleccion.find({"evento": nombre_evento}).sort("fecha_hora", -1))
     if not eventos:
@@ -40,14 +40,14 @@ def calcular_racha_detallada(nombre_evento):
     tiempo_detallado = f"{rdelta.years} años, {rdelta.months} meses, {rdelta.days} días, {rdelta.hours} horas, {rdelta.minutes} minutos, {rdelta.seconds} segundos"
     return f"{total_minutos} minutos", tiempo_detallado
 
-# Función para obtener registros
+# Obtener historial
 def obtener_registros(nombre_evento):
     eventos = list(coleccion.find({"evento": nombre_evento}).sort("fecha_hora", -1))
     fechas = [e["fecha_hora"].astimezone(colombia) for e in eventos]
     total = len(fechas)
     return pd.DataFrame([{"N°": total - i, "Fecha": f.date(), "Hora": f.strftime("%H:%M")} for i, f in enumerate(fechas)])
 
-# Interfaz
+# Interfaz principal
 st.title("🛡️ bucle-vigilado")
 
 # Sección de registro
@@ -87,19 +87,22 @@ if st.button("Registrar"):
         if not check_a and not check_b:
             st.warning("Selecciona al menos un evento para registrar.")
 
-# NUEVA SECCIÓN: Tabla de racha actual
+# ⏱️ Racha actual
 st.subheader("⏱️ Racha actual")
 
-minutos_a, detalle_a = calcular_racha_detallada(evento_a)
-minutos_b, detalle_b = calcular_racha_detallada(evento_b)
+# Mostrar tabla sin encabezado ni índice
+eventos = [evento_a, evento_b]
+emojis = ["✊🏽", "💸"]
+data = []
 
-df_racha = pd.DataFrame([
-    {"Evento": "✊🏽", "Minutos": minutos_a, "Detalle de Racha": detalle_a},
-    {"Evento": "💸", "Minutos": minutos_b, "Detalle de Racha": detalle_b}
-])
-st.table(df_racha)
+for nombre, emoji in zip(eventos, emojis):
+    minutos, detalle = calcular_racha_detallada(nombre)
+    data.append([emoji, minutos, detalle])
 
-# Historial
+df_racha = pd.DataFrame(data, columns=["", "", ""])
+st.dataframe(df_racha, hide_index=True, use_container_width=True)
+
+# Historial de registros
 st.subheader("📑 Historial de registros")
 tab1, tab2 = st.tabs(["✊🏽", "💸"])
 
