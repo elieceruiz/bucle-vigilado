@@ -1,5 +1,5 @@
 import streamlit as st
-st.set_page_config(page_title="bucle-vigilado", layout="centered")  # 🛑 PRIMERO
+st.set_page_config(page_title="BucleVigiladoApp", layout="centered")  # 🛑 PRIMERO
 
 from datetime import datetime
 from pymongo import MongoClient
@@ -48,7 +48,7 @@ def obtener_registros(nombre_evento):
     return pd.DataFrame([{"N°": total - i, "Fecha": f.date(), "Hora": f.strftime("%H:%M")} for i, f in enumerate(fechas)])
 
 # Interfaz
-st.title("bucle-vigilado")
+st.title("BucleVigiladoApp")
 
 # Sección de registro
 st.subheader("Registrar evento")
