@@ -48,7 +48,7 @@ def obtener_registros(nombre_evento):
     return pd.DataFrame([{"N°": total - i, "Fecha": f.date(), "Hora": f.strftime("%H:%M")} for i, f in enumerate(fechas)])
 
 # Interfaz
-st.title("🛡️ bucle-vigilado")
+st.title("bucle-vigilado")
 
 # Sección de registro
 st.subheader("Registrar evento")
