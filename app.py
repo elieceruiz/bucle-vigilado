@@ -30,14 +30,14 @@ def registrar_evento(nombre_evento, fecha_hora):
 def calcular_racha_detallada(nombre_evento):
     eventos = list(coleccion.find({"evento": nombre_evento}).sort("fecha_hora", -1))
     if not eventos:
-        return "0 minutos", "0 años, 0 meses, 0 días, 0 horas, 0 minutos, 0 segundos"
+        return "0 minutos", "0 años, 0 meses, 0 días, 0 h, 0 min, 0 s"
     ultimo = eventos[0]["fecha_hora"].astimezone(colombia)
     ahora = datetime.now(colombia)
     delta = ahora - ultimo
     total_minutos = int(delta.total_seconds() // 60)
 
     rdelta = relativedelta(ahora, ultimo)
-    tiempo_detallado = f"{rdelta.years} años, {rdelta.months} meses, {rdelta.days} días, {rdelta.hours} horas, {rdelta.minutes} minutos, {rdelta.seconds} segundos"
+    tiempo_detallado = f"{rdelta.years} años, {rdelta.months} meses, {rdelta.days} días, {rdelta.hours} h, {rdelta.minutes} min, {rdelta.seconds} s"
     return f"{total_minutos} minutos", tiempo_detallado
 
 # Función para obtener registros
