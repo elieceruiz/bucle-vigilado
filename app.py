@@ -1,5 +1,5 @@
 import streamlit as st
-st.set_page_config(page_title="🛡️ bucle-vigilado", layout="centered")  # 🛑 PRIMERO
+st.set_page_config(page_title="bucle-vigilado", layout="centered")  # 🛑 PRIMERO
 
 from datetime import datetime
 from pymongo import MongoClient
