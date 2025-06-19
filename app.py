@@ -1,5 +1,5 @@
 import streamlit as st
-st.set_page_config(page_title="BucleVigiladoApp", layout="centered")  # 🛑 PRIMERO
+st.set_page_config(page_title="BucleVigiladoApp", layout="centered")
 
 from datetime import datetime
 from pymongo import MongoClient
@@ -8,52 +8,41 @@ import pandas as pd
 from dateutil.relativedelta import relativedelta
 from streamlit_autorefresh import st_autorefresh
 
-# Configuración de zona horaria
+# Zona horaria
 colombia = pytz.timezone("America/Bogota")
 
 # Recarga automática cada segundo
 st_autorefresh(interval=1000, key="refresh")
 
-# Conexión a MongoDB
+# Conexión MongoDB
 client = MongoClient(st.secrets["mongo_uri"])
 db = client["registro_bucle"]
 coleccion = db["eventos"]
 
-# Función para registrar eventos
+# Eventos
+evento_a = "La Iniciativa Aquella"
+evento_b = "La Iniciativa de Pago"
+
+# Inicializar sesión
+for key in [evento_a, evento_b]:
+    if key not in st.session_state:
+        evento = coleccion.find_one({"evento": key}, sort=[("fecha_hora", -1)])
+        if evento:
+            st.session_state[key] = evento["fecha_hora"].astimezone(colombia)
+
+# Función para registrar evento
 def registrar_evento(nombre_evento, fecha_hora):
     coleccion.insert_one({
         "evento": nombre_evento,
         "fecha_hora": fecha_hora
     })
-
-# Función para calcular la racha completa
-def calcular_racha_detallada(nombre_evento):
-    eventos = list(coleccion.find({"evento": nombre_evento}).sort("fecha_hora", -1))
-    if not eventos:
-        return "0 minutos", "0 años, 0 meses, 0 días, 0 h, 0 min, 0 s"
-    ultimo = eventos[0]["fecha_hora"].astimezone(colombia)
-    ahora = datetime.now(colombia)
-    delta = ahora - ultimo
-    total_minutos = int(delta.total_seconds() // 60)
-
-    rdelta = relativedelta(ahora, ultimo)
-    tiempo_detallado = f"{rdelta.years} años, {rdelta.months} meses, {rdelta.days} días, {rdelta.hours} h, {rdelta.minutes} min, {rdelta.seconds} s"
-    return f"{total_minutos} minutos", tiempo_detallado
-
-# Función para obtener registros
-def obtener_registros(nombre_evento):
-    eventos = list(coleccion.find({"evento": nombre_evento}).sort("fecha_hora", -1))
-    fechas = [e["fecha_hora"].astimezone(colombia) for e in eventos]
-    total = len(fechas)
-    return pd.DataFrame([{"N°": total - i, "Fecha": f.date(), "Hora": f.strftime("%H:%M")} for i, f in enumerate(fechas)])
+    st.session_state[nombre_evento] = fecha_hora
 
 # Interfaz
 st.title("BucleVigilado")
 
 # Sección de registro
 st.subheader("Registrar evento")
-evento_a = "La Iniciativa Aquella"
-evento_b = "La Iniciativa de Pago"
 
 col1, col2 = st.columns(2)
 with col1:
@@ -91,19 +80,34 @@ if st.button("Registrar"):
 st.subheader("⏱️ Racha actual")
 col3, col4 = st.columns(2)
 
-with col3:
-    minutos_a, detalle_a = calcular_racha_detallada(evento_a)
-    st.metric("✊🏽", minutos_a)
-    st.caption(detalle_a)
+def mostrar_racha(nombre_evento, emoji):
+    if nombre_evento in st.session_state:
+        ahora = datetime.now(colombia)
+        ultimo = st.session_state[nombre_evento]
+        delta = ahora - ultimo
+        minutos = int(delta.total_seconds() // 60)
+        rdelta = relativedelta(ahora, ultimo)
+        detalle = f"{rdelta.years} años, {rdelta.months} meses, {rdelta.days} días, {rdelta.hours} h, {rdelta.minutes} min, {rdelta.seconds} s"
+        st.metric(emoji, f"{minutos} minutos")
+        st.caption(detalle)
+    else:
+        st.metric(emoji, "0 minutos")
+        st.caption("0 años, 0 meses, 0 días, 0 h, 0 min, 0 s")
 
+with col3:
+    mostrar_racha(evento_a, "✊🏽")
 with col4:
-    minutos_b, detalle_b = calcular_racha_detallada(evento_b)
-    st.metric("💸", minutos_b)
-    st.caption(detalle_b)
+    mostrar_racha(evento_b, "💸")
 
 # Historial
 st.subheader("📑 Historial de registros")
 tab1, tab2 = st.tabs(["✊🏽", "💸"])
+
+def obtener_registros(nombre_evento):
+    eventos = list(coleccion.find({"evento": nombre_evento}).sort("fecha_hora", -1))
+    fechas = [e["fecha_hora"].astimezone(colombia) for e in eventos]
+    total = len(fechas)
+    return pd.DataFrame([{"N°": total - i, "Fecha": f.date(), "Hora": f.strftime("%H:%M")} for i, f in enumerate(fechas)])
 
 with tab1:
     df_a = obtener_registros(evento_a)
