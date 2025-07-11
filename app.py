@@ -1,49 +1,46 @@
 import streamlit as st
-from pymongo import MongoClient
 from datetime import datetime
-from dateutil.relativedelta import relativedelta
+from pymongo import MongoClient
 import pytz
 import pandas as pd
+from dateutil.relativedelta import relativedelta
 import re
-from streamlit_autorefresh import st_autorefresh
 
-# === CONFIG ===
-st.set_page_config(page_title="BucleVigilado", layout="centered")
+# === CONFIGURACIÓN ===
+st.set_page_config(page_title="🧭 Bucle Vigilado", layout="centered")
 colombia = pytz.timezone("America/Bogota")
-st_autorefresh(interval=5000, key="refresh_cronometro")
 
-# === DB ===
+# === CONEXIÓN MONGO ===
 client = MongoClient(st.secrets["mongo_uri"])
 db = client["registro_bucle"]
 coleccion_eventos = db["eventos"]
 coleccion_reflexiones = db["reflexiones"]
 
-evento_a = "La Iniciativa Aquella"
-evento_b = "La Iniciativa de Pago"
-iconos = {
-    evento_a: "✊🏽",
-    evento_b: "💸"
+# === OPCIONES DE EVENTO ===
+eventos_disponibles = {
+    "✊🏽 La Iniciativa Aquella": "La Iniciativa Aquella",
+    "💸 La Iniciativa de Pago": "La Iniciativa de Pago"
 }
+iconos = {v: k.split()[0] for k, v in eventos_disponibles.items()}
 
-# === FUNCIONES ===
+# === UTILIDADES ===
 def cerrar_evento_anterior(evento):
-    ultimo = coleccion_eventos.find_one({"evento": evento, "fin": {"$exists": False}}, sort=[("inicio", -1)])
-    if ultimo:
-        coleccion_eventos.update_one(
-            {"_id": ultimo["_id"]},
-            {"$set": {"fin": datetime.now(colombia)}}
-        )
+    coleccion_eventos.update_many(
+        {"evento": evento, "fin": {"$exists": False}},
+        {"$set": {"fin": datetime.now(colombia)}}
+    )
 
-def iniciar_evento(evento):
-    cerrar_evento_anterior(evento)
-    nuevo = {
-        "evento": evento,
-        "inicio": datetime.now(colombia)
-    }
-    coleccion_eventos.insert_one(nuevo)
+def registrar_evento(nombre_evento, fecha_hora):
+    cerrar_evento_anterior(nombre_evento)
+    coleccion_eventos.insert_one({
+        "evento": nombre_evento,
+        "inicio": fecha_hora
+    })
 
-def evento_activo(evento):
-    return coleccion_eventos.find_one({"evento": evento, "fin": {"$exists": False}}, sort=[("inicio", -1)])
+def formatear_duracion(inicio):
+    ahora = datetime.now(colombia)
+    delta = relativedelta(ahora, inicio)
+    return f"{delta.years}a {delta.months}m {delta.days}d {delta.hours}h {delta.minutes}m {delta.seconds}s"
 
 def guardar_reflexion(fecha_hora, emociones, reflexion):
     doc = {
@@ -53,39 +50,71 @@ def guardar_reflexion(fecha_hora, emociones, reflexion):
     }
     coleccion_reflexiones.insert_one(doc)
 
-def formatear_duracion(td):
-    rdelta = relativedelta(datetime.now(colombia), td)
-    return f"{rdelta.years}a {rdelta.months}m {rdelta.days}d {rdelta.hours}h {rdelta.minutes}m {rdelta.seconds}s"
+def obtener_evento_activo(evento):
+    return coleccion_eventos.find_one(
+        {"evento": evento, "fin": {"$exists": False}},
+        sort=[("inicio", -1)]
+    )
 
-# === UI PRINCIPAL ===
+def obtener_historial(evento):
+    docs = coleccion_eventos.find({"evento": evento}).sort("inicio", -1)
+    rows = []
+    for d in docs:
+        inicio = d["inicio"].astimezone(colombia)
+        fin = d.get("fin")
+        if fin:
+            fin = fin.astimezone(colombia)
+            duracion = relativedelta(fin, inicio)
+            texto_duracion = f"{duracion.years}a {duracion.months}m {duracion.days}d {duracion.hours}h {duracion.minutes}m"
+            estado = fin.strftime("%H:%M:%S")
+        else:
+            texto_duracion = formatear_duracion(inicio)
+            estado = "⏳ Activo"
+        rows.append({
+            "Fecha": inicio.strftime("%Y-%m-%d"),
+            "Inicio": inicio.strftime("%H:%M:%S"),
+            "Fin": estado,
+            "Duración": texto_duracion
+        })
+    return pd.DataFrame(rows)
+
+def obtener_reflexiones():
+    docs = list(coleccion_reflexiones.find({}).sort("fecha_hora", -1))
+    rows = []
+    for d in docs:
+        emociones = " ".join(e["emoji"] for e in d.get("emociones", []))
+        texto = d.get("reflexion", "")
+        fecha = d["fecha_hora"].astimezone(colombia)
+        rows.append({
+            "Fecha": fecha.strftime("%Y-%m-%d"),
+            "Hora": fecha.strftime("%H:%M"),
+            "Emociones": emociones,
+            "Reflexión": texto
+        })
+    return pd.DataFrame(rows)
+
+# === INTERFAZ PRINCIPAL ===
 st.title("📍 Registrar evento con cronómetro")
 
-st.checkbox(f"{iconos[evento_a]} {evento_a}", key="check_a")
-st.checkbox(f"{iconos[evento_b]} {evento_b}", key="check_b")
-
+# === SELECCIÓN E INICIO ===
+evento_seleccionado = st.selectbox("Seleccioná el evento a iniciar", list(eventos_disponibles.values()))
 if st.button("🚀 Iniciar evento"):
-    if st.session_state.check_a:
-        iniciar_evento(evento_a)
-        st.success("Evento A registrado")
-    if st.session_state.check_b:
-        iniciar_evento(evento_b)
-        st.success("Evento B registrado")
-    if not st.session_state.check_a and not st.session_state.check_b:
-        st.warning("No seleccionaste ningún evento")
+    registrar_evento(evento_seleccionado, datetime.now(colombia))
+    st.rerun()
 
-# === ESTADO ACTUAL DE EVENTO ===
-st.header("🕒 Estado actual de eventos")
-for evento in [evento_a, evento_b]:
-    activo = evento_activo(evento)
-    if activo:
+# === ESTADO ACTUAL ===
+st.subheader("🕰️ Estado actual de eventos")
+for evento in eventos_disponibles.values():
+    activo = obtener_evento_activo(evento)
+    if activo and "inicio" in activo:
         inicio = activo["inicio"].astimezone(colombia)
-        duracion = datetime.now(colombia) - inicio
         st.success(f"{iconos[evento]} Evento activo desde el {inicio.strftime('%Y-%m-%d %H:%M:%S')}")
         st.write(f"⏱️ Duración: {formatear_duracion(inicio)}")
-        st.button(f"⛔ Detener {iconos[evento]}", key=f"stop_{evento}", on_click=cerrar_evento_anterior, args=(evento,))
+    else:
+        st.info(f"{iconos[evento]} No hay evento activo registrado.")
 
-# === REFLEXIONES ===
-st.header("🧠 Registrar reflexión")
+# === SECCIÓN DE REFLEXIONES ===
+st.subheader("🧠 Registrar reflexión")
 fecha_hora_reflexion = datetime.now(colombia)
 emociones_opciones = [
     "😰 Ansioso", "😡 Irritado / Rabia contenida", "💪 Firme / Decidido",
@@ -104,36 +133,16 @@ if st.button("📝 Guardar reflexión"):
         st.warning("Escribí algo o seleccioná al menos una emoción.")
 
 # === HISTORIAL ===
-st.header("📑 Historial de eventos")
-tab_a, tab_b = st.tabs([f"{iconos[evento_a]} Historial A", f"{iconos[evento_b]} Historial B"])
+st.subheader("📑 Historial de eventos")
+tab1, tab2 = st.tabs(["✊🏽 Historial A", "💸 Historial B"])
+with tab1:
+    st.dataframe(obtener_historial("La Iniciativa Aquella"), use_container_width=True, hide_index=True)
+with tab2:
+    st.dataframe(obtener_historial("La Iniciativa de Pago"), use_container_width=True, hide_index=True)
 
-def obtener_historial(evento):
-    docs = list(coleccion_eventos.find({"evento": evento}).sort("inicio", -1))
-    rows = []
-    for d in docs:
-        inicio = d["inicio"].astimezone(colombia)
-        fin = d.get("fin")
-        fin_fmt = fin.astimezone(colombia).strftime("%H:%M:%S") if fin else "⏳ Activo"
-        duracion = formatear_duracion(inicio) if not fin else str(relativedelta(fin, inicio)).replace("relativedelta(", "").replace(")", "").replace(", ", " ")
-        rows.append({
-            "Fecha": inicio.strftime("%Y-%m-%d"),
-            "Inicio": inicio.strftime("%H:%M:%S"),
-            "Fin": fin_fmt,
-            "Duración": duracion
-        })
-    return pd.DataFrame(rows)
-
-with tab_a:
-    st.dataframe(obtener_historial(evento_a), use_container_width=True, hide_index=True)
-with tab_b:
-    st.dataframe(obtener_historial(evento_b), use_container_width=True, hide_index=True)
-
-# === REFLEXIONES PREVIAS ===
-st.header("📖 Reflexiones previas")
-docs = list(coleccion_reflexiones.find({}).sort("fecha_hora", -1))
-for doc in docs:
-    fecha = doc["fecha_hora"].astimezone(colombia).strftime("%Y-%m-%d %H:%M")
-    emociones = " ".join(e["emoji"] for e in doc.get("emociones", []))
-    texto = doc.get("reflexion", "")
-    with st.expander(f"{fecha} — {emociones}"):
-        st.write(texto)
+# === HISTORIAL DE REFLEXIONES ===
+st.subheader("📖 Reflexiones previas")
+df_r = obtener_reflexiones()
+for i, row in df_r.iterrows():
+    with st.expander(f"{row['Fecha']} {row['Hora']} — {row['Emociones']}"):
+        st.write(row["Reflexión"])
