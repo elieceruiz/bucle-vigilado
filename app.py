@@ -23,70 +23,75 @@ evento_b = "La Iniciativa de Pago"
 st.title("BucleVigilado")
 st.header("📍 Registrar evento con cronómetro")
 
-# === SELECCIÓN Y REGISTRO ===
 col1, col2 = st.columns(2)
 with col1:
     check_a = st.checkbox("✊🏽 La Iniciativa Aquella")
 with col2:
     check_b = st.checkbox("💸 La Iniciativa de Pago")
 
-if st.button("🟢 Iniciar evento"):
+if st.button("🚀 Iniciar evento"):
     ahora = datetime.now(colombia)
     if check_a:
         coleccion_eventos.insert_one({
             "evento": evento_a,
-            "inicio": ahora,
-            "en_curso": True
+            "inicio": ahora
         })
         st.success("✊🏽 Evento A iniciado")
 
     if check_b:
         coleccion_eventos.insert_one({
             "evento": evento_b,
-            "inicio": ahora,
-            "en_curso": True
+            "inicio": ahora
         })
         st.success("💸 Evento B iniciado")
 
     if not check_a and not check_b:
         st.warning("Seleccioná al menos un evento para iniciar.")
 
-# === CRONÓMETROS ACTIVOS ===
-def mostrar_cronometro_activo(nombre_evento, emoji):
-    evento = coleccion_eventos.find_one({"evento": nombre_evento, "en_curso": True})
-    if evento:
-        hora_inicio = evento["inicio"].astimezone(colombia)
-        segundos_transcurridos = int((datetime.now(colombia) - hora_inicio).total_seconds())
+# === MOSTRAR ESTADO DE CADA EVENTO ===
+st.subheader("⏱️ Estado actual de eventos")
 
-        st.success(f"{emoji} Evento activo desde las {hora_inicio.strftime('%H:%M:%S')}")
-        cronometro = st.empty()
-        stop_button = st.button(f"⏹️ Detener {emoji}")
+def mostrar_estado_evento(nombre_evento, emoji):
+    ultimo_evento = coleccion_eventos.find_one({"evento": nombre_evento}, sort=[("inicio", -1)])
 
-        for i in range(segundos_transcurridos, segundos_transcurridos + 100000):
-            if stop_button:
-                coleccion_eventos.update_one(
-                    {"_id": evento["_id"]},
-                    {
-                        "$set": {
-                            "fin": datetime.now(colombia),
-                            "en_curso": False
-                        }
-                    }
-                )
-                st.success(f"{emoji} Evento finalizado")
-                st.rerun()
+    if ultimo_evento:
+        inicio = ultimo_evento["inicio"].astimezone(colombia)
+        ahora = datetime.now(colombia)
 
-            duracion = str(timedelta(seconds=i))
-            cronometro.markdown(f"### ⏱️ Duración: {duracion}")
-            time.sleep(1)
+        # Si NO tiene campo "fin", lo tratamos como activo
+        if "fin" not in ultimo_evento:
+            segundos_transcurridos = int((ahora - inicio).total_seconds())
+            st.success(f"{emoji} Evento activo desde las {inicio.strftime('%H:%M:%S')}")
+            cronometro = st.empty()
+            stop_button = st.button(f"⏹️ Detener {emoji}")
 
-st.subheader("⏱️ Eventos activos")
+            for i in range(segundos_transcurridos, segundos_transcurridos + 100000):
+                if stop_button:
+                    coleccion_eventos.update_one(
+                        {"_id": ultimo_evento["_id"]},
+                        {"$set": {"fin": ahora}}
+                    )
+                    st.success(f"{emoji} Evento finalizado")
+                    st.rerun()
+
+                duracion = str(timedelta(seconds=i))
+                cronometro.markdown(f"### ⏱️ Duración: {duracion}")
+                time.sleep(1)
+        else:
+            delta = ahora - inicio
+            minutos = int(delta.total_seconds() // 60)
+            detalle = str(timedelta(seconds=int(delta.total_seconds())))
+            st.metric(f"{emoji} Racha sin evento", f"{minutos} min")
+            st.caption(f"Último hace: {detalle}")
+    else:
+        st.metric(f"{emoji} Racha sin evento", "0 min")
+        st.caption("Sin registros anteriores")
 
 col3, col4 = st.columns(2)
 with col3:
-    mostrar_cronometro_activo(evento_a, "✊🏽")
+    mostrar_estado_evento(evento_a, "✊🏽")
 with col4:
-    mostrar_cronometro_activo(evento_b, "💸")
+    mostrar_estado_evento(evento_b, "💸")
 
 # === SECCIÓN: REFLEXIONES ===
 st.header("🧠 Registrar reflexión")
@@ -115,7 +120,7 @@ if st.button("📝 Guardar reflexión"):
 st.subheader("📑 Historial de eventos")
 
 def obtener_historial(evento_nombre):
-    docs = list(coleccion_eventos.find({"evento": evento_nombre, "en_curso": False}).sort("inicio", -1))
+    docs = list(coleccion_eventos.find({"evento": evento_nombre, "fin": {"$exists": True}}).sort("inicio", -1))
     data = []
     for d in docs:
         inicio = d.get("inicio", None)
