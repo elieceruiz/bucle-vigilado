@@ -76,10 +76,17 @@ def obtener_registros(nombre_evento):
     total = len(eventos)
     for i, e in enumerate(eventos):
         fecha = e["fecha_hora"].astimezone(colombia)
+        if i + 1 < len(eventos):
+            anterior = eventos[i + 1]["fecha_hora"].astimezone(colombia)
+            delta = relativedelta(fecha, anterior)
+            diferencia = f"{delta.days}d {delta.hours}h {delta.minutes}m"
+        else:
+            diferencia = "—"
         filas.append({
             "N°": total - i,
             "Fecha": fecha.strftime("%Y-%m-%d"),
-            "Hora": fecha.strftime("%H:%M")
+            "Hora": fecha.strftime("%H:%M"),
+            "🕒 Racha previa": diferencia
         })
     return pd.DataFrame(filas)
 
@@ -141,7 +148,8 @@ elif opcion == "reflexion":
     ]
     emociones = st.multiselect("¿Cómo te sentías?", emociones_opciones)
     reflexion = st.text_area("¿Querés dejar algo escrito?", height=150)
-    palabras = len(re.findall(r'\b\w+\b', reflexion))
+
+    palabras = len([p for p in reflexion.strip().split() if p.strip(",.?!¡¿")])
     st.caption(f"📄 Palabras: {palabras}")
 
     if st.button("📝 Guardar reflexión"):
