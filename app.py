@@ -122,7 +122,7 @@ with col4:
 
 # === TABS ===
 st.subheader("📑 Historial de registros")
-tab1, tab2, tab3 = st.tabs(["✊🏽", "💸", "🧠 Reflexiones y Descargas"])
+tab1, tab2, tab3, tab4 = st.tabs(["✊🏽", "💸", "🧠 Reflexiones", "🔄 Migrar Reflexiones"])
 
 def obtener_registros(nombre_evento):
     eventos = list(coleccion_eventos.find({"evento": nombre_evento}).sort("fecha_hora", -1))
@@ -159,3 +159,35 @@ with tab3:
     for i, row in df_r.iterrows():
         with st.expander(f"{row['Fecha']} {row['Hora']} — {row['Emociones']}"):
             st.write(row["Reflexión"])
+
+# === MIGRATION TAB ===
+with tab4:
+    st.subheader("🔄 Migrar Reflexiones desde 'eventos'")
+    docs_con_reflexion = list(coleccion_eventos.find({"reflexion": {"$exists": True}}))
+    total_migrables = len(docs_con_reflexion)
+
+    if total_migrables == 0:
+        st.success("✅ No hay reflexiones almacenadas por error en la colección 'eventos'.")
+    else:
+        st.warning(f"⚠️ Se encontraron {total_migrables} documento(s) con reflexiones en 'eventos'.")
+        if st.checkbox("🔍 Ver los primeros 3"):
+            for d in docs_con_reflexion[:3]:
+                st.write({
+                    "fecha_hora": d["fecha_hora"].astimezone(colombia).strftime("%Y-%m-%d %H:%M"),
+                    "emociones": d.get("emociones", []),
+                    "reflexion": d.get("reflexion", "").strip()
+                })
+
+        if st.button("🚀 Ejecutar migración"):
+            migrados = 0
+            for d in docs_con_reflexion:
+                nueva_reflexion = {
+                    "fecha_hora": d["fecha_hora"],
+                    "emociones": d.get("emociones", []),
+                    "reflexion": d["reflexion"].strip()
+                }
+                coleccion_reflexiones.insert_one(nueva_reflexion)
+                coleccion_eventos.delete_one({"_id": d["_id"]})
+                migrados += 1
+            st.success(f"✅ Migración completada. {migrados} reflexión(es) movida(s) a 'reflexiones'.")
+            st.balloons()
