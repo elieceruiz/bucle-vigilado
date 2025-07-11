@@ -158,4 +158,4 @@ with tab3:
     df_r = obtener_reflexiones()
     for i, row in df_r.iterrows():
         with st.expander(f"{row['Fecha']} {row['Hora']} — {row['Emociones']}"):
-            st.write(row["Reflexión"])p
+            st.write(row["Reflexión"])
