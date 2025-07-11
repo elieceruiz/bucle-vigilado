@@ -5,7 +5,6 @@ import pytz
 import pandas as pd
 from dateutil.relativedelta import relativedelta
 import re
-import time
 
 # === CONFIG ===
 st.set_page_config(page_title="BucleVigiladoApp", layout="centered")
@@ -121,29 +120,6 @@ with col3:
 with col4:
     mostrar_racha(evento_b, "💸")
 
-# === CRONÓMETRO EN TIEMPO REAL ===
-st.subheader("⏳ Cronómetro activo")
-
-evento_activo = None
-for key in [evento_a, evento_b]:
-    if key in st.session_state:
-        if evento_activo is None or st.session_state[key] > st.session_state[evento_activo]:
-            evento_activo = key
-
-if evento_activo:
-    inicio = st.session_state[evento_activo]
-    espacio = st.empty()
-    for _ in range(100000):  # límite alto
-        ahora = datetime.now(colombia)
-        delta = ahora - inicio
-        horas, rem = divmod(int(delta.total_seconds()), 3600)
-        minutos, segundos = divmod(rem, 60)
-        espacio.markdown(f"### ⌛ Tiempo desde el último evento ({evento_activo}): **{horas:02}h {minutos:02}m {segundos:02}s**")
-        time.sleep(1)
-        # Si se ha registrado un nuevo evento mientras corre
-        if st.session_state[evento_activo] != inicio:
-            break
-
 # === HISTORIAL TABS ===
 st.subheader("📑 Historial")
 tab1, tab2, tab3 = st.tabs(["✊🏽 Eventos A", "💸 Eventos B", "🧠 Reflexiones"])
@@ -178,7 +154,9 @@ with tab2:
     st.dataframe(df_b, use_container_width=True, hide_index=True)
 
 with tab3:
+    st.markdown("### 📚 Reflexiones previas")
     df_r = obtener_reflexiones()
     for i, row in df_r.iterrows():
         with st.expander(f"{row['Fecha']} {row['Hora']} — {row['Emociones']}"):
             st.write(row["Reflexión"])
+        st.markdown("---")
