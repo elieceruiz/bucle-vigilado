@@ -51,16 +51,14 @@ def guardar_reflexion(fecha_hora, emociones, reflexion):
 
 def mostrar_racha(nombre_evento, emoji):
     if nombre_evento in st.session_state:
-        ahora = datetime.now(colombia)
         ultimo = st.session_state[nombre_evento]
-        delta = ahora - ultimo
-        minutos = int(delta.total_seconds() // 60)
         cronometro = st.empty()
         st.caption(f"🔴 Última recaída: {ultimo.strftime('%Y-%m-%d %H:%M:%S')}")
-        for _ in range(5):
+        while True:
             ahora = datetime.now(colombia)
             delta = ahora - ultimo
             detalle = relativedelta(ahora, ultimo)
+            minutos = int(delta.total_seconds() // 60)
             tiempo = f"{detalle.years}a {detalle.months}m {detalle.days}d {detalle.hours}h {detalle.minutes}m {detalle.seconds}s"
             cronometro.metric("⏱️ Racha", f"{minutos:,} min", tiempo)
             time.sleep(1)
@@ -114,16 +112,20 @@ if opcion in [evento_a, evento_b]:
 
     if st.button("✅ Registrar evento"):
         registrar_evento(opcion, fecha_hora_evento)
-        st.success(f"Evento '{seleccion}' registrado")
+        st.success(f"Evento '{seleccion}' registrado a las {fecha_hora_evento.strftime('%H:%M:%S')}")
 
     mostrar_racha(opcion, seleccion.split()[0])
-
-    st.subheader(f"📑 Registros de {opcion}")
-    st.dataframe(obtener_registros(opcion), use_container_width=True, hide_index=True)
 
 # === MÓDULO REFLEXIÓN ===
 elif opcion == "reflexion":
     st.header("🧠 Registrar reflexión")
+
+    # Mostrar última reflexión registrada
+    ultima = coleccion_reflexiones.find_one({}, sort=[("fecha_hora", -1)])
+    if ultima:
+        fecha = ultima["fecha_hora"].astimezone(colombia)
+        st.caption(f"📌 Última registrada: {fecha.strftime('%Y-%m-%d %H:%M:%S')}")
+
     fecha_hora_reflexion = datetime.now(colombia)
 
     emociones_opciones = [
@@ -131,39 +133,17 @@ elif opcion == "reflexion":
         "😌 Aliviado / Tranquilo", "😓 Culpable", "🥱 Apático / Cansado", "😔 Triste"
     ]
 
-    if "texto_reflexion" not in st.session_state:
-        st.session_state.texto_reflexion = ""
-    if "emociones_reflexion" not in st.session_state:
-        st.session_state.emociones_reflexion = []
-
-    emociones = st.multiselect("¿Cómo te sentías?", emociones_opciones, default=st.session_state.emociones_reflexion, key="emociones_reflexion")
+    emociones = st.multiselect("¿Cómo te sentías?", emociones_opciones, key="emociones_reflexion")
     texto_reflexion = st.text_area("¿Querés dejar algo escrito?", height=150, key="texto_reflexion")
 
-    col1, col2 = st.columns(2)
-
-    with col1:
-        if st.button("🔢 Contar palabras", disabled=not texto_reflexion.strip()):
-            num_palabras = len(texto_reflexion.strip().split())
-            st.info(f"Palabras: {num_palabras}")
-
-    with col2:
-        if st.button("🧹 Restablecer"):
-            st.session_state.texto_reflexion = ""
-            st.session_state.emociones_reflexion = []
-            st.rerun()
-
-    if st.button("📝 Guardar reflexión", disabled=not (texto_reflexion.strip() or emociones)):
+    puede_guardar = texto_reflexion.strip() or emociones
+    if st.button("📝 Guardar reflexión", disabled=not puede_guardar):
         guardar_reflexion(fecha_hora_reflexion, emociones, texto_reflexion)
         st.success(f"🧠 Reflexión guardada a las {fecha_hora_reflexion.strftime('%H:%M:%S')}")
+        st.caption("👇 Última reflexión registrada:")
+        st.write(texto_reflexion.strip())
         st.session_state.texto_reflexion = ""
         st.session_state.emociones_reflexion = []
-        st.rerun()
-
-    st.subheader("📑 Historial de reflexiones")
-    df_r = obtener_reflexiones()
-    for i, row in df_r.iterrows():
-        with st.expander(f"{row['Fecha']} {row['Hora']} — {row['Emociones']}"):
-            st.write(row["Reflexión"])
 
 # === MÓDULO HISTORIAL COMPLETO ===
 elif opcion == "historial":
