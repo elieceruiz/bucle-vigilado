@@ -1,5 +1,6 @@
-streamlit
-pymongo
-pytz
-python-dateutil
-pandas
+streamlit==1.35.0
+pymongo==4.7.2
+python-dateutil==2.9.0
+pytz==2024.1
+pandas==2.2.2
+streamlit-extras==0.3.4
