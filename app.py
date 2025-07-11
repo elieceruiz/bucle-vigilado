@@ -43,6 +43,8 @@ if opcion != "reflexion":
     st.session_state["texto_reflexion"] = ""
     st.session_state["emociones_reflexion"] = []
     st.session_state["limpiar_reflexion"] = False
+    if "📝 Guardar reflexión" in st.session_state:
+        del st.session_state["📝 Guardar reflexión"]
 
 # === FUNCIONES ===
 def registrar_evento(nombre_evento, fecha_hora):
