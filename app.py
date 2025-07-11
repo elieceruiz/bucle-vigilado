@@ -116,7 +116,7 @@ if opcion in [evento_a, evento_b]:
 
     mostrar_racha(opcion, seleccion.split()[0])
 
-# === MÓDULO REFLEXIÓN ===
+# === MÓDULO REFLEXIÓN (aislado por completo) ===
 elif opcion == "reflexion":
     st.header("🧠 Registrar reflexión")
 
@@ -126,17 +126,18 @@ elif opcion == "reflexion":
         fecha = ultima["fecha_hora"].astimezone(colombia)
         st.caption(f"📌 Última registrada: {fecha.strftime('%Y-%m-%d %H:%M:%S')}")
 
+    # Borrar campos si se solicitó
+    if "reset_reflexion" in st.session_state and st.session_state.reset_reflexion:
+        st.session_state.texto_reflexion = ""
+        st.session_state.emociones_reflexion = []
+        st.session_state.reset_reflexion = False
+
     fecha_hora_reflexion = datetime.now(colombia)
 
     emociones_opciones = [
         "😰 Ansioso", "😡 Irritado / Rabia contenida", "💪 Firme / Decidido",
         "😌 Aliviado / Tranquilo", "😓 Culpable", "🥱 Apático / Cansado", "😔 Triste"
     ]
-
-    if st.session_state.get("reset_reflexion"):
-        st.session_state.texto_reflexion = ""
-        st.session_state.emociones_reflexion = []
-        st.session_state.reset_reflexion = False
 
     emociones = st.multiselect("¿Cómo te sentías?", emociones_opciones, key="emociones_reflexion")
     texto_reflexion = st.text_area("¿Querés dejar algo escrito?", height=150, key="texto_reflexion")
