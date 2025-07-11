@@ -5,9 +5,11 @@ import pytz
 import pandas as pd
 from dateutil.relativedelta import relativedelta
 import re
+from streamlit_autorefresh import st_autorefresh
 
 # === CONFIG ===
 st.set_page_config(page_title="BucleVigiladoApp", layout="centered")
+st_autorefresh(interval=5000, limit=None, key="auto")
 colombia = pytz.timezone("America/Bogota")
 
 # === DATABASE CONNECTION ===
@@ -20,20 +22,18 @@ coleccion_reflexiones = db["reflexiones"]
 evento_a = "La Iniciativa Aquella"
 evento_b = "La Iniciativa de Pago"
 
-# === INITIAL STATE ===
-for key in [evento_a, evento_b]:
-    if key not in st.session_state:
-        evento = coleccion_eventos.find_one({"evento": key}, sort=[("fecha_hora", -1)])
-        if evento:
-            st.session_state[key] = evento["fecha_hora"].astimezone(colombia)
-
 # === FUNCTIONS ===
 def registrar_evento(nombre_evento, fecha_hora):
+    # Cierra eventos abiertos sin 'fin'
+    coleccion_eventos.update_many(
+        {"evento": nombre_evento, "fin": {"$exists": False}},
+        {"$set": {"fin": fecha_hora}}
+    )
+    # Inserta nuevo evento
     coleccion_eventos.insert_one({
         "evento": nombre_evento,
-        "fecha_hora": fecha_hora
+        "inicio": fecha_hora
     })
-    st.session_state[nombre_evento] = fecha_hora
 
 def guardar_reflexion(fecha_hora, emociones, reflexion):
     doc = {
@@ -101,34 +101,47 @@ if st.button("📝 Guardar reflexión"):
 st.subheader("⏱️ Racha actual")
 col3, col4 = st.columns(2)
 
-def mostrar_racha(nombre_evento, emoji):
-    if nombre_evento in st.session_state:
+def mostrar_cronometro(evento_nombre, emoji):
+    activo = coleccion_eventos.find_one(
+        {"evento": evento_nombre, "fin": {"$exists": False}},
+        sort=[("inicio", -1)]
+    )
+    if activo and "inicio" in activo:
+        inicio = activo["inicio"].astimezone(colombia)
         ahora = datetime.now(colombia)
-        ultimo = st.session_state[nombre_evento]
-        delta = ahora - ultimo
-        minutos = int(delta.total_seconds() // 60)
-        rdelta = relativedelta(ahora, ultimo)
-        detalle = f"{rdelta.years}a {rdelta.months}m {rdelta.days}d {rdelta.hours}h {rdelta.minutes}m {rdelta.seconds}s"
+        delta = relativedelta(ahora, inicio)
+        minutos = int((ahora - inicio).total_seconds() // 60)
         st.metric(emoji, f"{minutos} min")
+        detalle = f"{delta.years}a {delta.months}m {delta.days}d {delta.hours}h {delta.minutes}m {delta.seconds}s"
         st.caption(detalle)
     else:
         st.metric(emoji, "0 min")
         st.caption("0a 0m 0d 0h 0m 0s")
 
 with col3:
-    mostrar_racha(evento_a, "✊🏽")
+    mostrar_cronometro(evento_a, "✊🏽")
 with col4:
-    mostrar_racha(evento_b, "💸")
+    mostrar_cronometro(evento_b, "💸")
 
 # === HISTORIAL TABS ===
 st.subheader("📑 Historial")
 tab1, tab2, tab3 = st.tabs(["✊🏽 Eventos A", "💸 Eventos B", "🧠 Reflexiones"])
 
 def obtener_registros(nombre_evento):
-    eventos = list(coleccion_eventos.find({"evento": nombre_evento}).sort("fecha_hora", -1))
-    fechas = [e["fecha_hora"].astimezone(colombia) for e in eventos]
-    total = len(fechas)
-    return pd.DataFrame([{"N°": total - i, "Fecha": f.date(), "Hora": f.strftime("%H:%M")} for i, f in enumerate(fechas)])
+    eventos = list(coleccion_eventos.find({"evento": nombre_evento}).sort("inicio", -1))
+    filas = []
+    total = len(eventos)
+    for i, e in enumerate(eventos):
+        fecha = e["inicio"].astimezone(colombia)
+        fila = {"N°": total - i, "Fecha": fecha.date(), "Hora": fecha.strftime("%H:%M")}
+        if "fin" in e:
+            fin = e["fin"].astimezone(colombia)
+            duracion = fin - fecha
+            fila["Duración"] = str(duracion).split(".")[0]
+        else:
+            fila["Duración"] = "En curso"
+        filas.append(fila)
+    return pd.DataFrame(filas)
 
 def obtener_reflexiones():
     docs = list(coleccion_reflexiones.find({}).sort("fecha_hora", -1))
