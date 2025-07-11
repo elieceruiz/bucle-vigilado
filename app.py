@@ -100,11 +100,6 @@ def obtener_reflexiones():
         })
     return pd.DataFrame(rows)
 
-def contar_palabras():
-    texto = st.session_state.reflexion or ""
-    palabras = [p for p in texto.strip().split() if p.strip(",.?!¡¿")]
-    st.session_state.palabras = len(palabras)
-
 # === UI PRINCIPAL ===
 st.title("BucleVigilado")
 seleccion = st.selectbox("Seleccioná qué registrar o consultar:", list(eventos.keys()))
@@ -129,21 +124,24 @@ elif opcion == "reflexion":
         "😰 Ansioso", "😡 Irritado / Rabia contenida", "💪 Firme / Decidido",
         "😌 Aliviado / Tranquilo", "😓 Culpable", "🥱 Apático / Cansado", "😔 Triste"
     ]
-    emociones = st.multiselect("¿Cómo te sentías?", emociones_opciones)
-    texto_reflexion = st.text_area("¿Querés dejar algo escrito?", height=150, key="reflexion")
+    emociones = st.multiselect("¿Cómo te sentías?", emociones_opciones, key="emociones_reflexion")
+
+    texto_reflexion = st.text_area("¿Querés dejar algo escrito?", height=150, key="texto_reflexion")
 
     if st.button("🔍 Contar palabras", disabled=not texto_reflexion.strip()):
-        contar_palabras()
+        palabras = [p for p in texto_reflexion.strip().split() if p.strip(",.?!¡¿")]
+        st.session_state.palabras = len(palabras)
 
     if "palabras" in st.session_state:
         st.caption(f"📄 Palabras: {st.session_state.palabras}")
 
-    if st.button("📝 Guardar reflexión"):
-        if texto_reflexion.strip() or emociones:
-            guardar_reflexion(fecha_hora_reflexion, emociones, texto_reflexion)
-            st.success("🧠 Reflexión guardada")
-        else:
-            st.warning("Escribí algo o seleccioná al menos una emoción.")
+    puede_guardar = texto_reflexion.strip() or emociones
+    if st.button("📝 Guardar reflexión", disabled=not puede_guardar):
+        guardar_reflexion(fecha_hora_reflexion, emociones, texto_reflexion)
+        st.success(f"🧠 Reflexión guardada a las {fecha_hora_reflexion.strftime('%H:%M:%S')}")
+        st.session_state.palabras = 0
+        st.session_state.texto_reflexion = ""
+        st.session_state.emociones_reflexion = []
 
 # === MÓDULO HISTORIAL COMPLETO ===
 elif opcion == "historial":
