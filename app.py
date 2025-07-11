@@ -33,6 +33,16 @@ for key in [evento_a, evento_b]:
         if evento:
             st.session_state[key] = evento["fecha_hora"].astimezone(colombia)
 
+# === UI PRINCIPAL ===
+st.title("BucleVigilado")
+seleccion = st.selectbox("Seleccioná qué registrar o consultar:", list(eventos.keys()))
+opcion = eventos[seleccion]
+
+# Reset campos de reflexión si cambiás de vista
+if opcion != "reflexion":
+    st.session_state.texto_reflexion = ""
+    st.session_state.emociones_reflexion = []
+
 # === FUNCIONES ===
 def registrar_evento(nombre_evento, fecha_hora):
     coleccion_eventos.insert_one({
@@ -100,11 +110,6 @@ def obtener_reflexiones():
         })
     return pd.DataFrame(rows)
 
-# === UI PRINCIPAL ===
-st.title("BucleVigilado")
-seleccion = st.selectbox("Seleccioná qué registrar o consultar:", list(eventos.keys()))
-opcion = eventos[seleccion]
-
 # === MÓDULO EVENTO ===
 if opcion in [evento_a, evento_b]:
     st.header(f"📍 Registro de evento: {seleccion}")
@@ -137,13 +142,14 @@ elif opcion == "reflexion":
     texto_reflexion = st.text_area("¿Querés dejar algo escrito?", height=150, key="texto_reflexion")
 
     puede_guardar = texto_reflexion.strip() or emociones
-    if st.button("📝 Guardar reflexión", disabled=not puede_guardar):
-        guardar_reflexion(fecha_hora_reflexion, emociones, texto_reflexion)
-        st.success(f"🧠 Reflexión guardada a las {fecha_hora_reflexion.strftime('%H:%M:%S')}")
-        st.caption("👇 Última reflexión registrada:")
-        st.write(texto_reflexion.strip())
-        st.session_state.texto_reflexion = ""
-        st.session_state.emociones_reflexion = []
+    if puede_guardar:
+        if st.button("📝 Guardar reflexión"):
+            guardar_reflexion(fecha_hora_reflexion, emociones, texto_reflexion)
+            st.success(f"🧠 Reflexión guardada a las {fecha_hora_reflexion.strftime('%H:%M:%S')}")
+            st.caption("👇 Última reflexión registrada:")
+            st.write(texto_reflexion.strip())
+            st.session_state.texto_reflexion = ""
+            st.session_state.emociones_reflexion = []
 
 # === MÓDULO HISTORIAL COMPLETO ===
 elif opcion == "historial":
