@@ -35,29 +35,15 @@ if st.button("🚀 Iniciar evento"):
     if check_a:
         anterior_a = coleccion_eventos.find_one({"evento": evento_a, "fin": {"$exists": False}}, sort=[("fecha_hora", -1)])
         if anterior_a:
-            coleccion_eventos.update_one(
-                {"_id": anterior_a["_id"]},
-                {"$set": {"fin": ahora}}
-            )
-
-        coleccion_eventos.insert_one({
-            "evento": evento_a,
-            "fecha_hora": ahora
-        })
+            coleccion_eventos.update_one({"_id": anterior_a["_id"]}, {"$set": {"fin": ahora}})
+        coleccion_eventos.insert_one({"evento": evento_a, "fecha_hora": ahora})
         st.success("✊🏽 Evento A iniciado")
 
     if check_b:
         anterior_b = coleccion_eventos.find_one({"evento": evento_b, "fin": {"$exists": False}}, sort=[("fecha_hora", -1)])
         if anterior_b:
-            coleccion_eventos.update_one(
-                {"_id": anterior_b["_id"]},
-                {"$set": {"fin": ahora}}
-            )
-
-        coleccion_eventos.insert_one({
-            "evento": evento_b,
-            "fecha_hora": ahora
-        })
+            coleccion_eventos.update_one({"_id": anterior_b["_id"]}, {"$set": {"fin": ahora}})
+        coleccion_eventos.insert_one({"evento": evento_b, "fecha_hora": ahora})
         st.success("💸 Evento B iniciado")
 
     if not check_a and not check_b:
@@ -75,7 +61,7 @@ def mostrar_estado_evento(nombre_evento, emoji):
 
         if "fin" not in ultimo_evento:
             segundos_transcurridos = int((ahora - inicio).total_seconds())
-            st.success(f"{emoji} Evento activo desde las {inicio.strftime('%H:%M:%S')}")
+            st.success(f"{emoji} Evento activo desde el {inicio.strftime('%Y-%m-%d %H:%M:%S')}")
             cronometro = st.empty()
             stop_button = st.button(f"⏹️ Detener {emoji}")
 
@@ -91,7 +77,6 @@ def mostrar_estado_evento(nombre_evento, emoji):
                 duracion = str(timedelta(seconds=i))
                 cronometro.markdown(f"### ⏱️ Duración: {duracion}")
                 time.sleep(1)
-
         else:
             delta = ahora - inicio
             minutos = int(delta.total_seconds() // 60)
