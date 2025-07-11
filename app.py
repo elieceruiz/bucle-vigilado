@@ -130,9 +130,6 @@ if opcion in [evento_a, evento_b]:
 
     mostrar_racha(opcion, seleccion.split()[0])
 
-    st.subheader(f"📑 Registros de {opcion}")
-    st.dataframe(obtener_registros(opcion), use_container_width=True, hide_index=True)
-
 # === MÓDULO REFLEXIÓN ===
 elif opcion == "reflexion":
     st.header("🧠 Registrar reflexión")
