@@ -5,12 +5,10 @@ import pytz
 import pandas as pd
 from dateutil.relativedelta import relativedelta
 import re
-from streamlit_extras.st_autorefresh import st_autorefresh
 
 # === CONFIG ===
 st.set_page_config(page_title="BucleVigiladoApp", layout="centered")
 colombia = pytz.timezone("America/Bogota")
-st_autorefresh(interval=1000, key="auto")  # Refresca cada segundo
 
 # === DATABASE CONNECTION ===
 client = MongoClient(st.secrets["mongo_uri"])
@@ -130,7 +128,7 @@ def obtener_registros(nombre_evento):
     eventos = list(coleccion_eventos.find({"evento": nombre_evento}).sort("fecha_hora", -1))
     fechas = [e["fecha_hora"].astimezone(colombia) for e in eventos]
     total = len(fechas)
-    return pd.DataFrame([{"N°": total - i, "Fecha": f.date(), "Hora": f.strftime("%H:%M:%S")} for i, f in enumerate(fechas)])
+    return pd.DataFrame([{"N°": total - i, "Fecha": f.date(), "Hora": f.strftime("%H:%M")} for i, f in enumerate(fechas)])
 
 def obtener_reflexiones():
     docs = list(coleccion_reflexiones.find({}).sort("fecha_hora", -1))
@@ -141,7 +139,7 @@ def obtener_reflexiones():
         fecha = d["fecha_hora"].astimezone(colombia)
         rows.append({
             "Fecha": fecha.strftime("%Y-%m-%d"),
-            "Hora": fecha.strftime("%H:%M:%S"),
+            "Hora": fecha.strftime("%H:%M"),
             "Emociones": emociones,
             "Reflexión": texto
         })
