@@ -125,8 +125,10 @@ if opcion in [evento_a, evento_b]:
 
     mostrar_racha(opcion, seleccion.split()[0])
 
-    st.subheader("📑 Historial del evento")
-    st.dataframe(obtener_registros(opcion), use_container_width=True, hide_index=True)
+    tab1, = st.tabs(["📑 Registros"])
+    with tab1:
+        df_evento = obtener_registros(opcion)
+        st.dataframe(df_evento, use_container_width=True, hide_index=True)
 
 # === MÓDULO DE REFLEXIONES ===
 elif opcion == "reflexion":
