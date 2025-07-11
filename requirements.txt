@@ -4,7 +4,6 @@ streamlit
 # Conexión a MongoDB
 pymongo
 
-
 # Manejo de zonas horarias
 pytz
 
