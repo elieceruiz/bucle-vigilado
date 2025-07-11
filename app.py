@@ -8,29 +8,29 @@ import pandas as pd
 from dateutil.relativedelta import relativedelta
 from streamlit_autorefresh import st_autorefresh
 
-# Zona horaria
+# Timezone
 colombia = pytz.timezone("America/Bogota")
 
-# Recarga automática cada segundo
+# Auto-refresh
 st_autorefresh(interval=1000, key="refresh")
 
-# Conexión MongoDB
+# MongoDB connection
 client = MongoClient(st.secrets["mongo_uri"])
 db = client["registro_bucle"]
 coleccion = db["eventos"]
 
-# Eventos
+# Event names
 evento_a = "La Iniciativa Aquella"
 evento_b = "La Iniciativa de Pago"
 
-# Inicializar sesión
+# Session state initialization
 for key in [evento_a, evento_b]:
     if key not in st.session_state:
         evento = coleccion.find_one({"evento": key}, sort=[("fecha_hora", -1)])
         if evento:
             st.session_state[key] = evento["fecha_hora"].astimezone(colombia)
 
-# Lista de emociones (emoji + nombre)
+# Emotions list
 emociones_opciones = [
     "😰 Ansioso",
     "😡 Irritado / Rabia contenida",
@@ -41,7 +41,7 @@ emociones_opciones = [
     "😔 Triste"
 ]
 
-# Función para registrar evento
+# Register event
 def registrar_evento(nombre_evento, fecha_hora, emociones=None, reflexion=None):
     doc = {
         "evento": nombre_evento,
@@ -54,10 +54,9 @@ def registrar_evento(nombre_evento, fecha_hora, emociones=None, reflexion=None):
     coleccion.insert_one(doc)
     st.session_state[nombre_evento] = fecha_hora
 
-# Interfaz
+# UI
 st.title("BucleVigilado")
 
-# Sección de registro
 st.subheader("Registrar evento")
 
 col1, col2 = st.columns(2)
@@ -81,25 +80,24 @@ if usar_fecha_hora_manual:
 else:
     fecha_hora = datetime.now(colombia)
 
-# Emociones y reflexión (si se marcó algún evento)
+# Emotions + Reflection
 emociones_seleccionadas = []
 reflexion = ""
+
 if check_a or check_b:
     emociones_seleccionadas = st.multiselect(
         "¿Cómo te sentías en ese momento?",
         emociones_opciones
     )
-
     reflexion = st.text_area(
         "¿Querés decir algo más sobre lo que sentiste o pensaste?",
         height=150
     )
-
     if reflexion.strip():
         palabras = len(reflexion.strip().split())
         st.caption(f"📝 Palabras: {palabras}")
 
-# Botón para registrar
+# Register button
 if st.button("Registrar"):
     if fecha_hora:
         if check_a:
@@ -111,7 +109,7 @@ if st.button("Registrar"):
         if not check_a and not check_b:
             st.warning("Selecciona al menos un evento para registrar.")
 
-# Métricas
+# Current streak
 st.subheader("⏱️ Racha actual")
 col3, col4 = st.columns(2)
 
@@ -134,9 +132,9 @@ with col3:
 with col4:
     mostrar_racha(evento_b, "💸")
 
-# Historial
+# History tabs
 st.subheader("📑 Historial de registros")
-tab1, tab2 = st.tabs(["✊🏽", "💸"])
+tab1, tab2, tab3 = st.tabs(["✊🏽", "💸", "📂 Reflexiones y Descargas"])
 
 def obtener_registros(nombre_evento):
     eventos = list(coleccion.find({"evento": nombre_evento}).sort("fecha_hora", -1))
@@ -157,3 +155,42 @@ with tab1:
 with tab2:
     df_b = obtener_registros(evento_b)
     st.dataframe(df_b, use_container_width=True, hide_index=True)
+
+# 📂 Reflexiones completas y descarga
+with tab3:
+    st.subheader("🧠 Reflexiones completas y análisis")
+
+    def traer_registros():
+        eventos = list(coleccion.find().sort("fecha_hora", -1))
+        filas = []
+        for i, e in enumerate(eventos):
+            fecha_hora = e["fecha_hora"].astimezone(colombia)
+            emociones = ", ".join([f'{emo["emoji"]} {emo["nombre"]}' for emo in e.get("emociones", [])])
+            reflexion = e.get("reflexion", "")
+            palabras = len(reflexion.strip().split()) if reflexion.strip() else 0
+            filas.append({
+                "N°": len(eventos) - i,
+                "Evento": e["evento"],
+                "Fecha": fecha_hora.date(),
+                "Hora": fecha_hora.strftime("%H:%M"),
+                "Emociones": emociones,
+                "Reflexión completa": reflexion,
+                "Palabras": palabras
+            })
+        return pd.DataFrame(filas)
+
+    df_reflexiones = traer_registros()
+
+    for _, row in df_reflexiones.iterrows():
+        with st.expander(f"{row['Fecha']} {row['Hora']} — {row['Evento']} — {row['Emociones']}"):
+            st.write(row["Reflexión completa"])
+            st.caption(f"📝 Palabras: {row['Palabras']}")
+
+    st.markdown("---")
+    csv = df_reflexiones.to_csv(index=False).encode("utf-8")
+    st.download_button(
+        label="📄 Descargar reflexiones como CSV",
+        data=csv,
+        file_name="reflexiones_completas.csv",
+        mime="text/csv"
+    )
