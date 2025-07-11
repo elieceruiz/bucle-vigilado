@@ -1,6 +1,6 @@
-# Core de la App
-streamlit
-pymongo
-pandas
-pytz
-python-dateutil
+streamlit              # Framework principal para la App web
+pymongo                # Conexión a MongoDB (Atlas o local)
+python-dateutil        # Manejo avanzado de fechas y diferencias
+pytz                   # Soporte para zonas horarias como "America/Bogota"
+pandas                 # Estructuras de datos (DataFrames) y manipulación de tablas
+streamlit-extras       # Funcionalidades extra opcionales para mejorar UI/UX
