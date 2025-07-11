@@ -43,6 +43,22 @@ def guardar_reflexion(fecha_hora, emociones, reflexion):
     }
     coleccion_reflexiones.insert_one(doc)
 
+def abreviar_racha(desde, hasta):
+    rdelta = relativedelta(hasta, desde)
+    return f"{rdelta.years}a {rdelta.months}m {rdelta.days}d {rdelta.hours}h {rdelta.minutes}m {rdelta.seconds}s"
+
+def mostrar_racha(nombre_evento, emoji):
+    if nombre_evento in st.session_state:
+        ahora = datetime.now(colombia)
+        ultimo = st.session_state[nombre_evento]
+        delta = ahora - ultimo
+        minutos = int(delta.total_seconds() // 60)
+        st.metric(emoji, f"{minutos} min")
+        st.caption(abreviar_racha(ultimo, ahora))
+    else:
+        st.metric(emoji, "0 min")
+        st.caption("0a 0m 0d 0h 0m 0s")
+
 # === UI ===
 st.title("BucleVigilado")
 
@@ -100,21 +116,6 @@ if st.button("📝 Guardar reflexión"):
 # === STREAKS ===
 st.subheader("⏱️ Racha actual")
 col3, col4 = st.columns(2)
-
-def mostrar_racha(nombre_evento, emoji):
-    if nombre_evento in st.session_state:
-        ahora = datetime.now(colombia)
-        ultimo = st.session_state[nombre_evento]
-        delta = ahora - ultimo
-        minutos = int(delta.total_seconds() // 60)
-        rdelta = relativedelta(ahora, ultimo)
-        detalle = f"{rdelta.years}a {rdelta.months}m {rdelta.days}d {rdelta.hours}h {rdelta.minutes}m {rdelta.seconds}s"
-        st.metric(emoji, f"{minutos} min")
-        st.caption(detalle)
-    else:
-        st.metric(emoji, "0 min")
-        st.caption("0a 0m 0d 0h 0m 0s")
-
 with col3:
     mostrar_racha(evento_a, "✊🏽")
 with col4:
@@ -154,9 +155,7 @@ with tab2:
     st.dataframe(df_b, use_container_width=True, hide_index=True)
 
 with tab3:
-    st.markdown("### 📚 Reflexiones previas")
     df_r = obtener_reflexiones()
     for i, row in df_r.iterrows():
         with st.expander(f"{row['Fecha']} {row['Hora']} — {row['Emociones']}"):
             st.write(row["Reflexión"])
-        st.markdown("---")
