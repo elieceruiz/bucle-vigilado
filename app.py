@@ -1,30 +1,39 @@
 import streamlit as st
-import time
-from datetime import datetime, timezone, timedelta
+from datetime import datetime
 from pymongo import MongoClient
 import pytz
 import pandas as pd
+from dateutil.relativedelta import relativedelta
 import re
 
 # === CONFIG ===
 st.set_page_config(page_title="BucleVigiladoApp", layout="centered")
 colombia = pytz.timezone("America/Bogota")
 
-# === DB CONNECTION ===
+# === DATABASE CONNECTION ===
 client = MongoClient(st.secrets["mongo_uri"])
 db = client["registro_bucle"]
 coleccion_eventos = db["eventos"]
 coleccion_reflexiones = db["reflexiones"]
 
+# === EVENT DEFINITIONS ===
 evento_a = "La Iniciativa Aquella"
 evento_b = "La Iniciativa de Pago"
 
-# === FUNCIONES ===
+# === INITIAL STATE ===
+for key in [evento_a, evento_b]:
+    if key not in st.session_state:
+        evento = coleccion_eventos.find_one({"evento": key}, sort=[("fecha_hora", -1)])
+        if evento:
+            st.session_state[key] = evento["fecha_hora"].astimezone(colombia)
+
+# === FUNCTIONS ===
 def registrar_evento(nombre_evento, fecha_hora):
     coleccion_eventos.insert_one({
         "evento": nombre_evento,
         "fecha_hora": fecha_hora
     })
+    st.session_state[nombre_evento] = fecha_hora
 
 def guardar_reflexion(fecha_hora, emociones, reflexion):
     doc = {
@@ -34,49 +43,57 @@ def guardar_reflexion(fecha_hora, emociones, reflexion):
     }
     coleccion_reflexiones.insert_one(doc)
 
-def obtener_ultimo_evento(nombre_evento):
-    doc = coleccion_eventos.find_one({"evento": nombre_evento}, sort=[("fecha_hora", -1)])
-    return doc["fecha_hora"].astimezone(colombia) if doc else None
-
-def formatear_duracion(td):
-    total_seg = int(td.total_seconds())
-    dias, resto = divmod(total_seg, 86400)
-    horas, resto = divmod(resto, 3600)
-    minutos, segundos = divmod(resto, 60)
-    return f"{dias}d {horas}h {minutos}m {segundos}s"
-
-def formatear_minutos(m):
-    return f"{int(m):,}".replace(",", ".")
+def tiempo_abreviado(inicio):
+    ahora = datetime.now(colombia)
+    r = relativedelta(ahora, inicio)
+    partes = []
+    if r.years > 0:
+        partes.append(f"{r.years}a")
+    if r.months > 0 or r.years > 0:
+        partes.append(f"{r.months}m")
+    if r.days > 0 or r.months > 0 or r.years > 0:
+        partes.append(f"{r.days}d")
+    partes += [f"{r.hours}h", f"{r.minutes}m", f"{r.seconds}s"]
+    return " ".join(partes)
 
 # === UI ===
-st.title("🧠 BucleVigilado")
+st.title("BucleVigilado")
 
-# === REGISTRO EVENTO ===
+# === SECTION 1: REGISTRAR EVENTO ===
 st.header("📍 Registrar evento")
 col1, col2 = st.columns(2)
 with col1:
-    tipo_evento = st.selectbox("Tipo de evento", [evento_a, evento_b])
+    check_a = st.checkbox("✊🏽 La Iniciativa Aquella")
 with col2:
-    usar_manual = st.checkbox("⏱️ Ingresar hora manual")
+    check_b = st.checkbox("💸 La Iniciativa de Pago")
 
+usar_manual = st.checkbox("Ingresar fecha y hora manualmente")
 if usar_manual:
     fecha = st.date_input("Fecha", datetime.now(colombia).date())
     hora_texto = st.text_input("Hora (HH:MM)", value=datetime.now(colombia).strftime("%H:%M"))
     try:
         hora = datetime.strptime(hora_texto, "%H:%M").time()
-        fecha_hora = colombia.localize(datetime.combine(fecha, hora))
-    except:
-        st.error("⚠️ Formato inválido.")
-        fecha_hora = None
+        fecha_hora_evento = colombia.localize(datetime.combine(fecha, hora))
+    except ValueError:
+        st.error("Formato de hora inválido. Usa HH:MM.")
+        fecha_hora_evento = None
 else:
-    fecha_hora = datetime.now(colombia)
+    fecha_hora_evento = datetime.now(colombia)
 
-if st.button("✅ Registrar evento") and fecha_hora:
-    registrar_evento(tipo_evento, fecha_hora)
-    st.success(f"📌 Evento registrado: {tipo_evento}")
+if st.button("✅ Registrar evento"):
+    if fecha_hora_evento:
+        if check_a:
+            registrar_evento(evento_a, fecha_hora_evento)
+            st.success("✊🏽 Evento registrado")
+        if check_b:
+            registrar_evento(evento_b, fecha_hora_evento)
+            st.success("💸 Evento registrado")
+        if not check_a and not check_b:
+            st.warning("No seleccionaste ningún evento.")
 
-# === REGISTRO REFLEXIÓN ===
+# === SECTION 2: REGISTRAR REFLEXIÓN ===
 st.header("🧠 Registrar reflexión")
+fecha_hora_reflexion = datetime.now(colombia)
 emociones_opciones = [
     "😰 Ansioso", "😡 Irritado / Rabia contenida", "💪 Firme / Decidido",
     "😌 Aliviado / Tranquilo", "😓 Culpable", "🥱 Apático / Cansado", "😔 Triste"
@@ -88,31 +105,67 @@ st.caption(f"📄 Palabras: {palabras}")
 
 if st.button("📝 Guardar reflexión"):
     if reflexion.strip() or emociones:
-        guardar_reflexion(datetime.now(colombia), emociones, reflexion)
+        guardar_reflexion(fecha_hora_reflexion, emociones, reflexion)
         st.success("🧠 Reflexión guardada")
     else:
-        st.warning("Seleccioná al menos una emoción o escribí algo.")
+        st.warning("Escribí algo o seleccioná al menos una emoción.")
 
-# === RACHAS EN TIEMPO REAL ===
-st.header("⏱️ Racha actual")
-
-racha_container = st.empty()
+# === STREAKS ===
+st.subheader("⏱️ Racha actual")
+col3, col4 = st.columns(2)
 
 def mostrar_racha(nombre_evento, emoji):
-    inicio = obtener_ultimo_evento(nombre_evento)
-    if inicio:
+    if nombre_evento in st.session_state:
         ahora = datetime.now(colombia)
-        delta = ahora - inicio
-        minutos = int(delta.total_seconds() // 60)
-        return f"{emoji} {formatear_minutos(minutos)} min", formatear_duracion(delta), inicio.strftime("%Y-%m-%d %H:%M")
-    return f"{emoji} 0 min", "0d 0h 0m 0s", "—"
+        inicio = st.session_state[nombre_evento]
+        minutos = int((ahora - inicio).total_seconds() // 60)
+        minutos_str = f"{minutos:,}".replace(",", ".")
+        st.metric(emoji, f"{minutos_str} min")
+        st.caption(tiempo_abreviado(inicio))
+    else:
+        st.metric(emoji, "0 min")
+        st.caption("0a 0m 0d 0h 0m 0s")
 
-while True:
-    with racha_container.container():
-        col1, col2 = st.columns(2)
-        for col, (evento, emoji) in zip([col1, col2], [(evento_a, "✊🏽"), (evento_b, "💸")]):
-            racha, detalle, fecha = mostrar_racha(evento, emoji)
-            col.metric(label=f"{evento}", value=racha, delta=detalle)
-            col.caption(f"Último: {fecha}")
-        st.caption("Se actualiza cada segundo.")
-    time.sleep(1)
+with col3:
+    mostrar_racha(evento_a, "✊🏽")
+with col4:
+    mostrar_racha(evento_b, "💸")
+
+# === HISTORIAL TABS ===
+st.subheader("📑 Historial")
+tab1, tab2, tab3 = st.tabs(["✊🏽 Eventos A", "💸 Eventos B", "🧠 Reflexiones"])
+
+def obtener_registros(nombre_evento):
+    eventos = list(coleccion_eventos.find({"evento": nombre_evento}).sort("fecha_hora", -1))
+    fechas = [e["fecha_hora"].astimezone(colombia) for e in eventos]
+    total = len(fechas)
+    return pd.DataFrame([{"N°": total - i, "Fecha": f.date(), "Hora": f.strftime("%H:%M")} for i, f in enumerate(fechas)])
+
+def obtener_reflexiones():
+    docs = list(coleccion_reflexiones.find({}).sort("fecha_hora", -1))
+    rows = []
+    for d in docs:
+        emociones = " ".join(e["emoji"] for e in d.get("emociones", []))
+        texto = d.get("reflexion", "")
+        fecha = d["fecha_hora"].astimezone(colombia)
+        rows.append({
+            "Fecha": fecha.strftime("%Y-%m-%d"),
+            "Hora": fecha.strftime("%H:%M"),
+            "Emociones": emociones,
+            "Reflexión": texto
+        })
+    return pd.DataFrame(rows)
+
+with tab1:
+    df_a = obtener_registros(evento_a)
+    st.dataframe(df_a, use_container_width=True, hide_index=True)
+
+with tab2:
+    df_b = obtener_registros(evento_b)
+    st.dataframe(df_b, use_container_width=True, hide_index=True)
+
+with tab3:
+    df_r = obtener_reflexiones()
+    for i, row in df_r.iterrows():
+        with st.expander(f"{row['Fecha']} {row['Hora']} — {row['Emociones']}"):
+            st.write(row["Reflexión"])
