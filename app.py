@@ -130,12 +130,17 @@ elif opcion == "reflexion":
         "😌 Aliviado / Tranquilo", "😓 Culpable", "🥱 Apático / Cansado", "😔 Triste"
     ]
     emociones = st.multiselect("¿Cómo te sentías?", emociones_opciones)
-    st.text_area("¿Querés dejar algo escrito?", height=150, key="reflexion", on_change=contar_palabras)
-    st.caption(f"📄 Palabras: {st.session_state.get('palabras', 0)}")
+    texto_reflexion = st.text_area("¿Querés dejar algo escrito?", height=150, key="reflexion")
+
+    if st.button("🔍 Contar palabras", disabled=not texto_reflexion.strip()):
+        contar_palabras()
+
+    if "palabras" in st.session_state:
+        st.caption(f"📄 Palabras: {st.session_state.palabras}")
 
     if st.button("📝 Guardar reflexión"):
-        if st.session_state.reflexion.strip() or emociones:
-            guardar_reflexion(fecha_hora_reflexion, emociones, st.session_state.reflexion)
+        if texto_reflexion.strip() or emociones:
+            guardar_reflexion(fecha_hora_reflexion, emociones, texto_reflexion)
             st.success("🧠 Reflexión guardada")
         else:
             st.warning("Escribí algo o seleccioná al menos una emoción.")
