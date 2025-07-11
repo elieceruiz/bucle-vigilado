@@ -38,15 +38,12 @@ st.title("BucleVigilado")
 seleccion = st.selectbox("Seleccioná qué registrar o consultar:", list(eventos.keys()))
 opcion = eventos[seleccion]
 
-# 🧹 Limpieza visual y de estado si no estamos en 'reflexion'
+# 🧹 Limpieza de campos y botones si se cambia de vista
 if opcion != "reflexion":
-    st.session_state["texto_reflexion"] = ""
-    st.session_state["emociones_reflexion"] = []
-    st.session_state["limpiar_reflexion"] = False
-    for key in ["📝 Guardar reflexión", "texto_reflexion", "emociones_reflexion"]:
+    for key in ["texto_reflexion", "emociones_reflexion", "limpiar_reflexion", "📝 Guardar reflexión"]:
         if key in st.session_state:
             del st.session_state[key]
-    st.empty()  # fuerza limpieza visual del DOM
+    st.empty()
 
 # === FUNCIONES ===
 def registrar_evento(nombre_evento, fecha_hora):
@@ -130,13 +127,13 @@ if opcion in [evento_a, evento_b]:
 elif opcion == "reflexion":
     st.header("🧠 Registrar reflexión")
 
-    # Limpiar campos si se indicó previamente
+    # Limpiar campos si viene del ciclo anterior
     if st.session_state.get("limpiar_reflexion"):
         st.session_state["texto_reflexion"] = ""
         st.session_state["emociones_reflexion"] = []
         st.session_state["limpiar_reflexion"] = False
 
-    # Mostrar última reflexión registrada
+    # Mostrar última reflexión (sin adornos)
     ultima = coleccion_reflexiones.find_one({}, sort=[("fecha_hora", -1)])
     if ultima:
         fecha = ultima["fecha_hora"].astimezone(colombia)
@@ -156,9 +153,7 @@ elif opcion == "reflexion":
     if puede_guardar:
         if st.button("📝 Guardar reflexión"):
             guardar_reflexion(fecha_hora_reflexion, emociones, texto_reflexion)
-            st.success(f"🧠 Reflexión guardada a las {fecha_hora_reflexion.strftime('%H:%M:%S')}")
-            st.caption("👇 Última reflexión registrada:")
-            st.write(texto_reflexion.strip())
+            st.toast("🧠 Reflexión guardada", icon="💾")
             st.session_state["limpiar_reflexion"] = True
             st.stop()
 
