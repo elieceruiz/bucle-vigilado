@@ -38,13 +38,15 @@ st.title("BucleVigilado")
 seleccion = st.selectbox("Seleccioná qué registrar o consultar:", list(eventos.keys()))
 opcion = eventos[seleccion]
 
-# Reset campos de reflexión si cambiás de vista
+# 🧹 Limpieza visual y de estado si no estamos en 'reflexion'
 if opcion != "reflexion":
     st.session_state["texto_reflexion"] = ""
     st.session_state["emociones_reflexion"] = []
     st.session_state["limpiar_reflexion"] = False
-    if "📝 Guardar reflexión" in st.session_state:
-        del st.session_state["📝 Guardar reflexión"]
+    for key in ["📝 Guardar reflexión", "texto_reflexion", "emociones_reflexion"]:
+        if key in st.session_state:
+            del st.session_state[key]
+    st.empty()  # fuerza limpieza visual del DOM
 
 # === FUNCIONES ===
 def registrar_evento(nombre_evento, fecha_hora):
