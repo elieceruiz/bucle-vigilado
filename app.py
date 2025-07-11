@@ -120,6 +120,7 @@ if opcion in [evento_a, evento_b]:
 elif opcion == "reflexion":
     st.header("🧠 Registrar reflexión")
     fecha_hora_reflexion = datetime.now(colombia)
+
     emociones_opciones = [
         "😰 Ansioso", "😡 Irritado / Rabia contenida", "💪 Firme / Decidido",
         "😌 Aliviado / Tranquilo", "😓 Culpable", "🥱 Apático / Cansado", "😔 Triste"
@@ -128,9 +129,10 @@ elif opcion == "reflexion":
 
     texto_reflexion = st.text_area("¿Querés dejar algo escrito?", height=150, key="texto_reflexion")
 
-    if st.button("🔍 Contar palabras", disabled=not texto_reflexion.strip()):
-        palabras = [p for p in texto_reflexion.strip().split() if p.strip(",.?!¡¿")]
-        st.session_state.palabras = len(palabras)
+    if texto_reflexion.strip():
+        if st.button("🔍 Contar palabras"):
+            palabras = [p for p in texto_reflexion.strip().split() if p.strip(",.?!¡¿")]
+            st.session_state.palabras = len(palabras)
 
     if "palabras" in st.session_state:
         st.caption(f"📄 Palabras: {st.session_state.palabras}")
