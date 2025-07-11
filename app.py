@@ -4,12 +4,10 @@ from pymongo import MongoClient
 import pytz
 import pandas as pd
 from dateutil.relativedelta import relativedelta
-from streamlit_autorefresh import st_autorefresh
 import re
 
 # === CONFIG ===
 st.set_page_config(page_title="BucleVigiladoApp", layout="centered")
-st_autorefresh(interval=1000, key="refresh")
 colombia = pytz.timezone("America/Bogota")
 
 # === DATABASE CONNECTION ===
@@ -29,7 +27,7 @@ for key in [evento_a, evento_b]:
         if evento:
             st.session_state[key] = evento["fecha_hora"].astimezone(colombia)
 
-# === SAVE EVENT FUNCTION ===
+# === FUNCTIONS ===
 def registrar_evento(nombre_evento, fecha_hora):
     coleccion_eventos.insert_one({
         "evento": nombre_evento,
@@ -37,7 +35,6 @@ def registrar_evento(nombre_evento, fecha_hora):
     })
     st.session_state[nombre_evento] = fecha_hora
 
-# === SAVE REFLECTION FUNCTION ===
 def guardar_reflexion(fecha_hora, emociones, reflexion):
     doc = {
         "fecha_hora": fecha_hora,
@@ -46,58 +43,61 @@ def guardar_reflexion(fecha_hora, emociones, reflexion):
     }
     coleccion_reflexiones.insert_one(doc)
 
-# === UI: MAIN TITLE ===
+# === UI ===
 st.title("BucleVigilado")
 
-# === UI: EVENT REGISTRATION ===
-st.subheader("Registrar evento")
+# === SECTION 1: REGISTRAR EVENTO ===
+st.header("📍 Registrar evento")
 col1, col2 = st.columns(2)
 with col1:
-    check_a = st.checkbox("✊🏽", value=False)
+    check_a = st.checkbox("✊🏽 La Iniciativa Aquella")
 with col2:
-    check_b = st.checkbox("💸", value=False)
+    check_b = st.checkbox("💸 La Iniciativa de Pago")
 
-usar_fecha_hora_manual = st.checkbox("Ingresar fecha y hora manualmente")
-if usar_fecha_hora_manual:
+usar_manual = st.checkbox("Ingresar fecha y hora manualmente")
+if usar_manual:
     fecha = st.date_input("Fecha", datetime.now(colombia).date())
-    hora_texto = st.text_input("Hora (HH:MM, formato 24h)", value=datetime.now(colombia).strftime("%H:%M"))
+    hora_texto = st.text_input("Hora (HH:MM)", value=datetime.now(colombia).strftime("%H:%M"))
     try:
         hora = datetime.strptime(hora_texto, "%H:%M").time()
-        fecha_hora = colombia.localize(datetime.combine(fecha, hora))
+        fecha_hora_evento = colombia.localize(datetime.combine(fecha, hora))
     except ValueError:
-        st.error("Formato de hora no válido. Usa HH:MM en formato 24h.")
-        fecha_hora = None
+        st.error("Formato de hora inválido. Usa HH:MM.")
+        fecha_hora_evento = None
 else:
-    fecha_hora = datetime.now(colombia)
+    fecha_hora_evento = datetime.now(colombia)
 
-# === EMOTION OPTIONS ===
+if st.button("✅ Registrar evento"):
+    if fecha_hora_evento:
+        if check_a:
+            registrar_evento(evento_a, fecha_hora_evento)
+            st.success("✊🏽 Evento registrado")
+        if check_b:
+            registrar_evento(evento_b, fecha_hora_evento)
+            st.success("💸 Evento registrado")
+        if not check_a and not check_b:
+            st.warning("No seleccionaste ningún evento.")
+
+# === SECTION 2: REGISTRAR REFLEXIÓN ===
+st.header("🧠 Registrar reflexión")
+fecha_hora_reflexion = datetime.now(colombia)
 emociones_opciones = [
     "😰 Ansioso", "😡 Irritado / Rabia contenida", "💪 Firme / Decidido",
     "😌 Aliviado / Tranquilo", "😓 Culpable", "🥱 Apático / Cansado", "😔 Triste"
 ]
-
-# === REFLECTION UI ===
-emociones_sueltas = st.multiselect("¿Cómo te sentías en ese momento?", emociones_opciones)
-reflexion_suelta = st.text_area("¿Querés decir algo más sobre lo que sentiste o pensaste?", height=150)
-palabras = len(re.findall(r'\b\w+\b', reflexion_suelta))
+emociones = st.multiselect("¿Cómo te sentías?", emociones_opciones)
+reflexion = st.text_area("¿Querés dejar algo escrito?", height=150)
+palabras = len(re.findall(r'\b\w+\b', reflexion))
 st.caption(f"📄 Palabras: {palabras}")
 
-# === SAVE BUTTON ===
-if st.button("Registrar"):
-    if fecha_hora:
-        if check_a:
-            registrar_evento(evento_a, fecha_hora)
-            st.success("✊🏽 Evento registrado")
-        if check_b:
-            registrar_evento(evento_b, fecha_hora)
-            st.success("💸 Evento registrado")
-        if emociones_sueltas or reflexion_suelta.strip():
-            guardar_reflexion(fecha_hora, emociones_sueltas, reflexion_suelta)
-            st.success("🧠 Reflexión guardada")
-        if not check_a and not check_b and not emociones_sueltas and not reflexion_suelta.strip():
-            st.warning("No se seleccionó ningún evento ni se escribió una reflexión.")
+if st.button("📝 Guardar reflexión"):
+    if reflexion.strip() or emociones:
+        guardar_reflexion(fecha_hora_reflexion, emociones, reflexion)
+        st.success("🧠 Reflexión guardada")
+    else:
+        st.warning("Escribí algo o seleccioná al menos una emoción.")
 
-# === STREAK METRICS ===
+# === STREAKS ===
 st.subheader("⏱️ Racha actual")
 col3, col4 = st.columns(2)
 
@@ -120,9 +120,9 @@ with col3:
 with col4:
     mostrar_racha(evento_b, "💸")
 
-# === TABS ===
-st.subheader("📑 Historial de registros")
-tab1, tab2, tab3, tab4 = st.tabs(["✊🏽", "💸", "🧠 Reflexiones", "🔄 Migrar Reflexiones"])
+# === HISTORIAL TABS ===
+st.subheader("📑 Historial")
+tab1, tab2, tab3 = st.tabs(["✊🏽 Eventos A", "💸 Eventos B", "🧠 Reflexiones"])
 
 def obtener_registros(nombre_evento):
     eventos = list(coleccion_eventos.find({"evento": nombre_evento}).sort("fecha_hora", -1))
@@ -154,40 +154,7 @@ with tab2:
     st.dataframe(df_b, use_container_width=True, hide_index=True)
 
 with tab3:
-    st.subheader("🧠 Reflexiones completas y análisis")
     df_r = obtener_reflexiones()
     for i, row in df_r.iterrows():
         with st.expander(f"{row['Fecha']} {row['Hora']} — {row['Emociones']}"):
             st.write(row["Reflexión"])
-
-# === MIGRATION TAB ===
-with tab4:
-    st.subheader("🔄 Migrar Reflexiones desde 'eventos'")
-    docs_con_reflexion = list(coleccion_eventos.find({"reflexion": {"$exists": True}}))
-    total_migrables = len(docs_con_reflexion)
-
-    if total_migrables == 0:
-        st.success("✅ No hay reflexiones almacenadas por error en la colección 'eventos'.")
-    else:
-        st.warning(f"⚠️ Se encontraron {total_migrables} documento(s) con reflexiones en 'eventos'.")
-        if st.checkbox("🔍 Ver los primeros 3"):
-            for d in docs_con_reflexion[:3]:
-                st.write({
-                    "fecha_hora": d["fecha_hora"].astimezone(colombia).strftime("%Y-%m-%d %H:%M"),
-                    "emociones": d.get("emociones", []),
-                    "reflexion": d.get("reflexion", "").strip()
-                })
-
-        if st.button("🚀 Ejecutar migración"):
-            migrados = 0
-            for d in docs_con_reflexion:
-                nueva_reflexion = {
-                    "fecha_hora": d["fecha_hora"],
-                    "emociones": d.get("emociones", []),
-                    "reflexion": d["reflexion"].strip()
-                }
-                coleccion_reflexiones.insert_one(nueva_reflexion)
-                coleccion_eventos.delete_one({"_id": d["_id"]})
-                migrados += 1
-            st.success(f"✅ Migración completada. {migrados} reflexión(es) movida(s) a 'reflexiones'.")
-            st.balloons()
