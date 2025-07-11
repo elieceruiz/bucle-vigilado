@@ -30,12 +30,28 @@ for key in [evento_a, evento_b]:
         if evento:
             st.session_state[key] = evento["fecha_hora"].astimezone(colombia)
 
+# Lista de emociones (emoji + nombre)
+emociones_opciones = [
+    "😰 Ansioso",
+    "😡 Irritado / Rabia contenida",
+    "💪 Firme / Decidido",
+    "😌 Aliviado / Tranquilo",
+    "😓 Culpable",
+    "🥱 Apático / Cansado",
+    "😔 Triste"
+]
+
 # Función para registrar evento
-def registrar_evento(nombre_evento, fecha_hora):
-    coleccion.insert_one({
+def registrar_evento(nombre_evento, fecha_hora, emociones=None, reflexion=None):
+    doc = {
         "evento": nombre_evento,
         "fecha_hora": fecha_hora
-    })
+    }
+    if emociones:
+        doc["emociones"] = [{"emoji": e.split()[0], "nombre": " ".join(e.split()[1:])} for e in emociones]
+    if reflexion:
+        doc["reflexion"] = reflexion.strip()
+    coleccion.insert_one(doc)
     st.session_state[nombre_evento] = fecha_hora
 
 # Interfaz
@@ -65,13 +81,32 @@ if usar_fecha_hora_manual:
 else:
     fecha_hora = datetime.now(colombia)
 
+# Emociones y reflexión (si se marcó algún evento)
+emociones_seleccionadas = []
+reflexion = ""
+if check_a or check_b:
+    emociones_seleccionadas = st.multiselect(
+        "¿Cómo te sentías en ese momento?",
+        emociones_opciones
+    )
+
+    reflexion = st.text_area(
+        "¿Querés decir algo más sobre lo que sentiste o pensaste?",
+        height=150
+    )
+
+    if reflexion.strip():
+        palabras = len(reflexion.strip().split())
+        st.caption(f"📝 Palabras: {palabras}")
+
+# Botón para registrar
 if st.button("Registrar"):
     if fecha_hora:
         if check_a:
-            registrar_evento(evento_a, fecha_hora)
+            registrar_evento(evento_a, fecha_hora, emociones_seleccionadas, reflexion)
             st.success("✊🏽 Evento registrado")
         if check_b:
-            registrar_evento(evento_b, fecha_hora)
+            registrar_evento(evento_b, fecha_hora, emociones_seleccionadas, reflexion)
             st.success("💸 Evento registrado")
         if not check_a and not check_b:
             st.warning("Selecciona al menos un evento para registrar.")
@@ -107,7 +142,13 @@ def obtener_registros(nombre_evento):
     eventos = list(coleccion.find({"evento": nombre_evento}).sort("fecha_hora", -1))
     fechas = [e["fecha_hora"].astimezone(colombia) for e in eventos]
     total = len(fechas)
-    return pd.DataFrame([{"N°": total - i, "Fecha": f.date(), "Hora": f.strftime("%H:%M")} for i, f in enumerate(fechas)])
+    return pd.DataFrame([{
+        "N°": total - i,
+        "Fecha": f.date(),
+        "Hora": f.strftime("%H:%M"),
+        "Emociones": ", ".join([f'{emo["emoji"]} {emo["nombre"]}' for emo in eventos[i].get("emociones", [])]),
+        "Reflexión": eventos[i].get("reflexion", "")
+    } for i, f in enumerate(fechas)])
 
 with tab1:
     df_a = obtener_registros(evento_a)
