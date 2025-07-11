@@ -33,8 +33,7 @@ if st.button("🚀 Iniciar evento"):
     ahora = datetime.now(colombia)
 
     if check_a:
-        # Cerrar evento anterior sin fin (si existe)
-        anterior_a = coleccion_eventos.find_one({"evento": evento_a, "fin": {"$exists": False}}, sort=[("inicio", -1)])
+        anterior_a = coleccion_eventos.find_one({"evento": evento_a, "fin": {"$exists": False}}, sort=[("fecha_hora", -1)])
         if anterior_a:
             coleccion_eventos.update_one(
                 {"_id": anterior_a["_id"]},
@@ -43,12 +42,12 @@ if st.button("🚀 Iniciar evento"):
 
         coleccion_eventos.insert_one({
             "evento": evento_a,
-            "inicio": ahora
+            "fecha_hora": ahora
         })
         st.success("✊🏽 Evento A iniciado")
 
     if check_b:
-        anterior_b = coleccion_eventos.find_one({"evento": evento_b, "fin": {"$exists": False}}, sort=[("inicio", -1)])
+        anterior_b = coleccion_eventos.find_one({"evento": evento_b, "fin": {"$exists": False}}, sort=[("fecha_hora", -1)])
         if anterior_b:
             coleccion_eventos.update_one(
                 {"_id": anterior_b["_id"]},
@@ -57,7 +56,7 @@ if st.button("🚀 Iniciar evento"):
 
         coleccion_eventos.insert_one({
             "evento": evento_b,
-            "inicio": ahora
+            "fecha_hora": ahora
         })
         st.success("💸 Evento B iniciado")
 
@@ -68,13 +67,12 @@ if st.button("🚀 Iniciar evento"):
 st.subheader("⏱️ Estado actual de eventos")
 
 def mostrar_estado_evento(nombre_evento, emoji):
-    ultimo_evento = coleccion_eventos.find_one({"evento": nombre_evento}, sort=[("inicio", -1)])
+    ultimo_evento = coleccion_eventos.find_one({"evento": nombre_evento}, sort=[("fecha_hora", -1)])
 
-    if ultimo_evento and "inicio" in ultimo_evento:
-        inicio = ultimo_evento["inicio"].astimezone(colombia)
+    if ultimo_evento and "fecha_hora" in ultimo_evento:
+        inicio = ultimo_evento["fecha_hora"].astimezone(colombia)
         ahora = datetime.now(colombia)
 
-        # Si NO tiene campo "fin", lo tratamos como activo
         if "fin" not in ultimo_evento:
             segundos_transcurridos = int((ahora - inicio).total_seconds())
             st.success(f"{emoji} Evento activo desde las {inicio.strftime('%H:%M:%S')}")
@@ -102,7 +100,7 @@ def mostrar_estado_evento(nombre_evento, emoji):
             st.caption(f"Último hace: {detalle}")
     else:
         st.metric(f"{emoji} Racha sin evento", "0 min")
-        st.caption("Sin eventos válidos con campo 'inicio'")
+        st.caption("Sin eventos válidos con campo 'fecha_hora'")
 
 col3, col4 = st.columns(2)
 with col3:
@@ -137,10 +135,10 @@ if st.button("📝 Guardar reflexión"):
 st.subheader("📑 Historial de eventos")
 
 def obtener_historial(evento_nombre):
-    docs = list(coleccion_eventos.find({"evento": evento_nombre, "fin": {"$exists": True}}).sort("inicio", -1))
+    docs = list(coleccion_eventos.find({"evento": evento_nombre, "fin": {"$exists": True}}).sort("fecha_hora", -1))
     data = []
     for d in docs:
-        inicio = d.get("inicio", None)
+        inicio = d.get("fecha_hora", None)
         fin = d.get("fin", None)
         if inicio and fin:
             duracion = str(fin - inicio)
