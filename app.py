@@ -42,6 +42,7 @@ opcion = eventos[seleccion]
 if opcion != "reflexion":
     st.session_state["texto_reflexion"] = ""
     st.session_state["emociones_reflexion"] = []
+    st.session_state["limpiar_reflexion"] = False
 
 # === FUNCIONES ===
 def registrar_evento(nombre_evento, fecha_hora):
@@ -125,11 +126,11 @@ if opcion in [evento_a, evento_b]:
 elif opcion == "reflexion":
     st.header("🧠 Registrar reflexión")
 
-    # --- Limpiar campos si viene ?limpiar=1 ---
-    if st.query_params.get("limpiar") == "1":
-        st.query_params.clear()
+    # Limpiar campos si se indicó previamente
+    if st.session_state.get("limpiar_reflexion"):
         st.session_state["texto_reflexion"] = ""
         st.session_state["emociones_reflexion"] = []
+        st.session_state["limpiar_reflexion"] = False
 
     # Mostrar última reflexión registrada
     ultima = coleccion_reflexiones.find_one({}, sort=[("fecha_hora", -1)])
@@ -154,7 +155,7 @@ elif opcion == "reflexion":
             st.success(f"🧠 Reflexión guardada a las {fecha_hora_reflexion.strftime('%H:%M:%S')}")
             st.caption("👇 Última reflexión registrada:")
             st.write(texto_reflexion.strip())
-            st.experimental_set_query_params(limpiar="1")
+            st.session_state["limpiar_reflexion"] = True
             st.stop()
 
 # === MÓDULO HISTORIAL COMPLETO ===
