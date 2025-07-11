@@ -4,6 +4,3 @@ pymongo
 pandas
 pytz
 python-dateutil
-
-# Extras visuales y funcionales
-streamlit-extras
