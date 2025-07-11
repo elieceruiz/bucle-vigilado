@@ -1,86 +1,129 @@
 import streamlit as st
-from datetime import datetime, timedelta
+from datetime import datetime
 from pymongo import MongoClient
+from dateutil.relativedelta import relativedelta
 import pytz
+import pandas as pd
 import re
 
 # === CONFIG ===
-st.set_page_config(page_title="BucleVigilado", layout="centered")
+st.set_page_config("Bucle Vigilado", layout="centered")
 colombia = pytz.timezone("America/Bogota")
 
-# === DATABASE CONNECTION ===
+# === CONEXIÓN A MONGO ===
 client = MongoClient(st.secrets["mongo_uri"])
 db = client["registro_bucle"]
 coleccion_eventos = db["eventos"]
 coleccion_reflexiones = db["reflexiones"]
 
+# === ETIQUETAS ===
 evento_a = "La Iniciativa Aquella"
 evento_b = "La Iniciativa de Pago"
+iconos = {evento_a: "✊🏽", evento_b: "💸"}
 
-# === REGISTRAR NUEVO EVENTO ===
-st.title("BucleVigilado")
-st.header("📍 Registrar evento")
-
-col1, col2 = st.columns(2)
-with col1:
-    check_a = st.checkbox("✊🏽 La Iniciativa Aquella")
-with col2:
-    check_b = st.checkbox("💸 La Iniciativa de Pago")
-
-if st.button("🚀 Iniciar evento"):
+# === FUNCIÓN PARA REGISTRAR NUEVO EVENTO Y CERRAR EL ANTERIOR ===
+def iniciar_evento(nombre_evento):
     ahora = datetime.now(colombia)
 
-    if check_a:
-        anterior = coleccion_eventos.find_one({"evento": evento_a, "fin": {"$exists": False}}, sort=[("fecha_hora", -1)])
-        if anterior:
-            coleccion_eventos.update_one({"_id": anterior["_id"]}, {"$set": {"fin": ahora}})
-        coleccion_eventos.insert_one({"evento": evento_a, "fecha_hora": ahora})
-        st.success("✊🏽 Evento A registrado")
+    # Cerrar evento activo actual (si hay)
+    ultimo = coleccion_eventos.find_one(
+        {"fin": {"$exists": False}}, sort=[("fecha_hora", -1)]
+    )
+    if ultimo:
+        coleccion_eventos.update_one(
+            {"_id": ultimo["_id"]}, {"$set": {"fin": ahora}}
+        )
 
-    if check_b:
-        anterior = coleccion_eventos.find_one({"evento": evento_b, "fin": {"$exists": False}}, sort=[("fecha_hora", -1)])
-        if anterior:
-            coleccion_eventos.update_one({"_id": anterior["_id"]}, {"$set": {"fin": ahora}})
-        coleccion_eventos.insert_one({"evento": evento_b, "fecha_hora": ahora})
-        st.success("💸 Evento B registrado")
+    # Insertar nuevo evento
+    coleccion_eventos.insert_one({
+        "evento": nombre_evento,
+        "fecha_hora": ahora
+    })
 
-    if not check_a and not check_b:
-        st.warning("Seleccioná al menos un evento para iniciar.")
+    st.success(f"{iconos[nombre_evento]} Nuevo evento iniciado.")
 
-# === ESTADO ACTUAL DE LOS EVENTOS ===
-st.subheader("⏱️ Estado actual")
-
-def mostrar_estado(nombre_evento, emoji):
-    evento = coleccion_eventos.find_one({"evento": nombre_evento}, sort=[("fecha_hora", -1)])
-
-    if evento and "fecha_hora" in evento:
+# === FUNCIÓN PARA MOSTRAR EVENTO ACTIVO CON CRONÓMETRO ===
+def mostrar_estado(nombre_evento):
+    evento = coleccion_eventos.find_one(
+        {"evento": nombre_evento, "fin": {"$exists": False}},
+        sort=[("fecha_hora", -1)]
+    )
+    if evento:
         inicio = evento["fecha_hora"].astimezone(colombia)
         ahora = datetime.now(colombia)
+        rdelta = relativedelta(ahora, inicio)
+        duracion = f"{rdelta.years}a {rdelta.months}m {rdelta.days}d, {rdelta.hours}h {rdelta.minutes}m {rdelta.seconds}s"
+        st.success(f"{iconos[nombre_evento]} Evento activo desde el {inicio.strftime('%Y-%m-%d %H:%M:%S')}")
+        st.metric("⏱️ Duración", duracion)
 
-        if "fin" not in evento:
-            segundos = int((ahora - inicio).total_seconds())
-            duracion = str(timedelta(seconds=segundos))
-            st.success(f"{emoji} Evento activo desde {inicio.strftime('%Y-%m-%d %H:%M:%S')}")
-            st.metric("⏱️ Duración", duracion)
-        else:
-            delta = ahora - inicio
-            minutos = int(delta.total_seconds() // 60)
-            detalle = str(timedelta(seconds=int(delta.total_seconds())))
-            st.metric(f"{emoji} Racha sin evento", f"{minutos} min")
-            st.caption(f"Último hace: {detalle}")
+# === FUNCIÓN PARA GUARDAR REFLEXIÓN ===
+def guardar_reflexion(fecha_hora, emociones, reflexion):
+    doc = {
+        "fecha_hora": fecha_hora,
+        "emociones": [{"emoji": e.split()[0], "nombre": " ".join(e.split()[1:])} for e in emociones],
+        "reflexion": reflexion.strip()
+    }
+    coleccion_reflexiones.insert_one(doc)
+
+# === FUNCIÓN PARA MOSTRAR HISTORIAL ===
+def historial_eventos(nombre_evento):
+    eventos = list(coleccion_eventos.find({"evento": nombre_evento}).sort("fecha_hora", -1))
+    data = []
+    for e in eventos:
+        inicio = e["fecha_hora"].astimezone(colombia)
+        fin = e.get("fin", datetime.now(pytz.utc)).astimezone(colombia)
+        rdelta = relativedelta(fin, inicio)
+        duracion = f"{rdelta.years}a {rdelta.months}m {rdelta.days}d {rdelta.hours}h {rdelta.minutes}m"
+        data.append({
+            "Fecha": inicio.strftime("%Y-%m-%d"),
+            "Inicio": inicio.strftime("%H:%M:%S"),
+            "Fin": fin.strftime("%H:%M:%S") if "fin" in e else "⏳ Activo",
+            "Duración": duracion
+        })
+    return pd.DataFrame(data)
+
+# === FUNCIÓN PARA MOSTRAR REFLEXIONES ===
+def obtener_reflexiones():
+    docs = list(coleccion_reflexiones.find({}).sort("fecha_hora", -1))
+    rows = []
+    for d in docs:
+        fecha = d["fecha_hora"].astimezone(colombia)
+        emociones = " ".join(e["emoji"] for e in d.get("emociones", []))
+        texto = d.get("reflexion", "")
+        rows.append({
+            "Fecha": fecha.strftime("%Y-%m-%d"),
+            "Hora": fecha.strftime("%H:%M"),
+            "Emociones": emociones,
+            "Reflexión": texto
+        })
+    return rows
+
+# === INTERFAZ ===
+st.title("📍 Registrar evento con cronómetro")
+
+# === INICIAR EVENTO ===
+st.subheader("🚀 Iniciar evento")
+col1, col2 = st.columns(2)
+with col1:
+    check_a = st.checkbox(f"{iconos[evento_a]} {evento_a}")
+with col2:
+    check_b = st.checkbox(f"{iconos[evento_b]} {evento_b}")
+
+if st.button("🚀 Iniciar evento"):
+    if check_a:
+        iniciar_evento(evento_a)
+    elif check_b:
+        iniciar_evento(evento_b)
     else:
-        st.metric(f"{emoji} Racha sin evento", "0 min")
-        st.caption("Sin eventos registrados")
+        st.warning("Seleccioná un evento para iniciar.")
 
-col3, col4 = st.columns(2)
-with col3:
-    mostrar_estado(evento_a, "✊🏽")
-with col4:
-    mostrar_estado(evento_b, "💸")
+# === ESTADO ACTUAL ===
+st.subheader("⏱️ Estado actual de eventos")
+mostrar_estado(evento_a)
+mostrar_estado(evento_b)
 
 # === REGISTRAR REFLEXIÓN ===
-st.header("🧠 Registrar reflexión")
-
+st.subheader("🧠 Registrar reflexión")
 fecha_hora_reflexion = datetime.now(colombia)
 emociones_opciones = [
     "😰 Ansioso", "😡 Irritado / Rabia contenida", "💪 Firme / Decidido",
@@ -93,50 +136,24 @@ st.caption(f"📄 Palabras: {palabras}")
 
 if st.button("📝 Guardar reflexión"):
     if reflexion.strip() or emociones:
-        coleccion_reflexiones.insert_one({
-            "fecha_hora": fecha_hora_reflexion,
-            "emociones": [{"emoji": e.split()[0], "nombre": " ".join(e.split()[1:])} for e in emociones],
-            "reflexion": reflexion.strip()
-        })
+        guardar_reflexion(fecha_hora_reflexion, emociones, reflexion)
         st.success("🧠 Reflexión guardada")
     else:
         st.warning("Escribí algo o seleccioná al menos una emoción.")
 
-# === HISTORIAL DE EVENTOS ===
+# === HISTORIAL ===
 st.subheader("📑 Historial de eventos")
-
-def historial_eventos(nombre_evento):
-    docs = list(coleccion_eventos.find({"evento": nombre_evento, "fin": {"$exists": True}}).sort("fecha_hora", -1))
-    data = []
-    for d in docs:
-        inicio = d.get("fecha_hora")
-        fin = d.get("fin")
-        if inicio and fin:
-            duracion = str(fin - inicio)
-            data.append({
-                "Fecha": inicio.astimezone(colombia).strftime("%Y-%m-%d"),
-                "Inicio": inicio.astimezone(colombia).strftime("%H:%M:%S"),
-                "Fin": fin.astimezone(colombia).strftime("%H:%M:%S"),
-                "Duración": duracion
-            })
-    return data
-
-tab1, tab2 = st.tabs(["✊🏽 Historial A", "💸 Historial B"])
+tab1, tab2 = st.tabs([f"{iconos[evento_a]} Historial A", f"{iconos[evento_b]} Historial B"])
 with tab1:
-    st.dataframe(historial_eventos(evento_a), use_container_width=True)
+    df_a = historial_eventos(evento_a)
+    st.dataframe(df_a, use_container_width=True, hide_index=True)
 with tab2:
-    st.dataframe(historial_eventos(evento_b), use_container_width=True)
+    df_b = historial_eventos(evento_b)
+    st.dataframe(df_b, use_container_width=True, hide_index=True)
 
-# === HISTORIAL DE REFLEXIONES ===
+# === REFLEXIONES ===
 st.subheader("📖 Reflexiones previas")
-reflexiones = list(coleccion_reflexiones.find({}).sort("fecha_hora", -1))
-
-if reflexiones:
-    for r in reflexiones:
-        fecha = r["fecha_hora"].astimezone(colombia)
-        texto = r.get("reflexion", "")
-        emociones = " ".join(e["emoji"] for e in r.get("emociones", []))
-        with st.expander(f"{fecha.strftime('%Y-%m-%d %H:%M')} — {emociones}"):
-            st.write(texto)
-else:
-    st.info("Aún no hay reflexiones registradas.")
+reflexiones = obtener_reflexiones()
+for r in reflexiones:
+    with st.expander(f"{r['Fecha']} {r['Hora']} — {r['Emociones']}"):
+        st.write(r["Reflexión"])
