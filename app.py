@@ -5,6 +5,7 @@ import pytz
 import pandas as pd
 from dateutil.relativedelta import relativedelta
 import re
+import time
 
 # === CONFIG ===
 st.set_page_config(page_title="BucleVigiladoApp", layout="centered")
@@ -46,18 +47,6 @@ def guardar_reflexion(fecha_hora, emociones, reflexion):
 def abreviar_racha(desde, hasta):
     rdelta = relativedelta(hasta, desde)
     return f"{rdelta.years}a {rdelta.months}m {rdelta.days}d {rdelta.hours}h {rdelta.minutes}m {rdelta.seconds}s"
-
-def mostrar_racha(nombre_evento, emoji):
-    if nombre_evento in st.session_state:
-        ahora = datetime.now(colombia)
-        ultimo = st.session_state[nombre_evento]
-        delta = ahora - ultimo
-        minutos = int(delta.total_seconds() // 60)
-        st.metric(emoji, f"{minutos} min")
-        st.caption(abreviar_racha(ultimo, ahora))
-    else:
-        st.metric(emoji, "0 min")
-        st.caption("0a 0m 0d 0h 0m 0s")
 
 # === UI ===
 st.title("BucleVigilado")
@@ -113,13 +102,26 @@ if st.button("📝 Guardar reflexión"):
     else:
         st.warning("Escribí algo o seleccioná al menos una emoción.")
 
-# === STREAKS ===
-st.subheader("⏱️ Racha actual")
-col3, col4 = st.columns(2)
-with col3:
-    mostrar_racha(evento_a, "✊🏽")
-with col4:
-    mostrar_racha(evento_b, "💸")
+# === RACHAS EN TIEMPO REAL (al segundo) ===
+st.subheader("⏱️ Racha actual en tiempo real")
+placeholders = {
+    evento_a: st.empty(),
+    evento_b: st.empty()
+}
+
+def actualizar_cronometros():
+    while True:
+        ahora = datetime.now(colombia)
+        for nombre_evento, emoji in [(evento_a, "✊🏽"), (evento_b, "💸")]:
+            if nombre_evento in st.session_state:
+                ultimo = st.session_state[nombre_evento]
+                detalle = abreviar_racha(ultimo, ahora)
+                placeholders[nombre_evento].markdown(f"**{emoji}** {detalle}")
+            else:
+                placeholders[nombre_evento].markdown(f"**{emoji}** 0a 0m 0d 0h 0m 0s")
+        time.sleep(1)
+
+actualizar_cronometros()
 
 # === HISTORIAL TABS ===
 st.subheader("📑 Historial")
