@@ -160,8 +160,21 @@ elif opcion == "reflexion":
             else:
                 st.toast("🧠 Primera reflexión guardada. ¡Buen comienzo!", icon="🌱")
 
+            # Vibración y scroll automático
+            st.markdown("""
+                <script>
+                    if (window.navigator && window.navigator.vibrate) {
+                        window.navigator.vibrate(100);
+                    }
+                    window.scrollTo({top: 0, behavior: 'smooth'});
+                </script>
+            """, unsafe_allow_html=True)
+
             st.session_state["limpiar_reflexion"] = True
+            time.sleep(0.3)
             st.rerun()
+
+    st.markdown("<div style='margin-bottom: 300px;'></div>", unsafe_allow_html=True)
 
 # === MÓDULO HISTORIAL COMPLETO ===
 elif opcion == "historial":
