@@ -117,7 +117,7 @@ if opcion in [evento_a, evento_b]:
     st.header(f"📍 Registro de evento: {seleccion}")
     fecha_hora_evento = datetime.now(colombia)
 
-    if st.button("✅ Registrar evento"):
+    if st.button("☠️ ¿Registrar?"):
         registrar_evento(opcion, fecha_hora_evento)
         st.success(f"Evento '{seleccion}' registrado a las {fecha_hora_evento.strftime('%H:%M:%S')}")
 
