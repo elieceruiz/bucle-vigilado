@@ -57,7 +57,7 @@ def mostrar_racha(nombre_evento, emoji):
         minutos = int(delta.total_seconds() // 60)
         cronometro = st.empty()
         st.caption(f"🔴 Última recaída: {ultimo.strftime('%Y-%m-%d %H:%M:%S')}")
-        for _ in range(5):
+        while True:
             ahora = datetime.now(colombia)
             delta = ahora - ultimo
             detalle = relativedelta(ahora, ultimo)
@@ -67,40 +67,6 @@ def mostrar_racha(nombre_evento, emoji):
     else:
         st.metric("⏱️ Racha", "0 min")
         st.caption("0a 0m 0d 0h 0m 0s")
-
-def obtener_registros(nombre_evento):
-    eventos = list(coleccion_eventos.find({"evento": nombre_evento}).sort("fecha_hora", -1))
-    filas = []
-    total = len(eventos)
-    for i, e in enumerate(eventos):
-        fecha = e["fecha_hora"].astimezone(colombia)
-        anterior = eventos[i + 1]["fecha_hora"].astimezone(colombia) if i + 1 < len(eventos) else None
-        diferencia = ""
-        if anterior:
-            delta = fecha - anterior
-            detalle = relativedelta(fecha, anterior)
-            diferencia = f"{detalle.years}a {detalle.months}m {detalle.days}d {detalle.hours}h {detalle.minutes}m"
-        filas.append({
-            "N°": total - i,
-            "Fecha": fecha.strftime("%Y-%m-%d"),
-            "Hora": fecha.strftime("%H:%M"),
-            "Duración sin caer": diferencia
-        })
-    return pd.DataFrame(filas)
-
-def obtener_reflexiones():
-    docs = list(coleccion_reflexiones.find({}).sort("fecha_hora", -1))
-    rows = []
-    for d in docs:
-        fecha = d["fecha_hora"].astimezone(colombia)
-        emociones = ", ".join([e["nombre"] for e in d.get("emociones", [])])
-        rows.append({
-            "Fecha": fecha.strftime("%Y-%m-%d"),
-            "Hora": fecha.strftime("%H:%M"),
-            "Emociones": emociones,
-            "Reflexión": d.get("reflexion", "")
-        })
-    return pd.DataFrame(rows)
 
 def contar_palabras():
     texto = st.session_state.reflexion or ""
@@ -135,9 +101,6 @@ if opcion in [evento_a, evento_b]:
 
     mostrar_racha(opcion, seleccion.split()[0])
 
-    st.subheader(f"📑 Registros de {opcion}")
-    st.dataframe(obtener_registros(opcion), use_container_width=True, hide_index=True)
-
 # === MÓDULO REFLEXIÓN ===
 elif opcion == "reflexion":
     st.header("🧠 Registrar reflexión")
@@ -156,12 +119,6 @@ elif opcion == "reflexion":
             st.success("🧠 Reflexión guardada")
         else:
             st.warning("Escribí algo o seleccioná al menos una emoción.")
-
-    st.subheader("📑 Historial de reflexiones")
-    df_r = obtener_reflexiones()
-    for i, row in df_r.iterrows():
-        with st.expander(f"{row['Fecha']} {row['Hora']} — {row['Emociones']}"):
-            st.write(row["Reflexión"])
 
 # === MÓDULO HISTORIAL COMPLETO ===
 elif opcion == "historial":
