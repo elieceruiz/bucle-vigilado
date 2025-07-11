@@ -31,7 +31,16 @@ with col2:
 
 if st.button("🚀 Iniciar evento"):
     ahora = datetime.now(colombia)
+
     if check_a:
+        # Cerrar evento anterior sin fin (si existe)
+        anterior_a = coleccion_eventos.find_one({"evento": evento_a, "fin": {"$exists": False}}, sort=[("inicio", -1)])
+        if anterior_a:
+            coleccion_eventos.update_one(
+                {"_id": anterior_a["_id"]},
+                {"$set": {"fin": ahora}}
+            )
+
         coleccion_eventos.insert_one({
             "evento": evento_a,
             "inicio": ahora
@@ -39,6 +48,13 @@ if st.button("🚀 Iniciar evento"):
         st.success("✊🏽 Evento A iniciado")
 
     if check_b:
+        anterior_b = coleccion_eventos.find_one({"evento": evento_b, "fin": {"$exists": False}}, sort=[("inicio", -1)])
+        if anterior_b:
+            coleccion_eventos.update_one(
+                {"_id": anterior_b["_id"]},
+                {"$set": {"fin": ahora}}
+            )
+
         coleccion_eventos.insert_one({
             "evento": evento_b,
             "inicio": ahora
@@ -54,7 +70,7 @@ st.subheader("⏱️ Estado actual de eventos")
 def mostrar_estado_evento(nombre_evento, emoji):
     ultimo_evento = coleccion_eventos.find_one({"evento": nombre_evento}, sort=[("inicio", -1)])
 
-    if ultimo_evento:
+    if ultimo_evento and "inicio" in ultimo_evento:
         inicio = ultimo_evento["inicio"].astimezone(colombia)
         ahora = datetime.now(colombia)
 
@@ -77,6 +93,7 @@ def mostrar_estado_evento(nombre_evento, emoji):
                 duracion = str(timedelta(seconds=i))
                 cronometro.markdown(f"### ⏱️ Duración: {duracion}")
                 time.sleep(1)
+
         else:
             delta = ahora - inicio
             minutos = int(delta.total_seconds() // 60)
@@ -85,7 +102,7 @@ def mostrar_estado_evento(nombre_evento, emoji):
             st.caption(f"Último hace: {detalle}")
     else:
         st.metric(f"{emoji} Racha sin evento", "0 min")
-        st.caption("Sin registros anteriores")
+        st.caption("Sin eventos válidos con campo 'inicio'")
 
 col3, col4 = st.columns(2)
 with col3:
