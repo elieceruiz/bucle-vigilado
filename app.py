@@ -51,22 +51,54 @@ def guardar_reflexion(fecha_hora, emociones, reflexion):
 
 def mostrar_racha(nombre_evento, emoji):
     if nombre_evento in st.session_state:
-        ahora = datetime.now(colombia)
         ultimo = st.session_state[nombre_evento]
-        delta = ahora - ultimo
-        minutos = int(delta.total_seconds() // 60)
         cronometro = st.empty()
         st.caption(f"🔴 Última recaída: {ultimo.strftime('%Y-%m-%d %H:%M:%S')}")
         while True:
             ahora = datetime.now(colombia)
             delta = ahora - ultimo
             detalle = relativedelta(ahora, ultimo)
+            minutos = int(delta.total_seconds() // 60)
             tiempo = f"{detalle.years}a {detalle.months}m {detalle.days}d {detalle.hours}h {detalle.minutes}m {detalle.seconds}s"
             cronometro.metric("⏱️ Racha", f"{minutos:,} min", tiempo)
             time.sleep(1)
     else:
         st.metric("⏱️ Racha", "0 min")
         st.caption("0a 0m 0d 0h 0m 0s")
+
+def obtener_registros(nombre_evento):
+    eventos = list(coleccion_eventos.find({"evento": nombre_evento}).sort("fecha_hora", -1))
+    filas = []
+    total = len(eventos)
+    for i, e in enumerate(eventos):
+        fecha = e["fecha_hora"].astimezone(colombia)
+        anterior = eventos[i + 1]["fecha_hora"].astimezone(colombia) if i + 1 < len(eventos) else None
+        diferencia = ""
+        if anterior:
+            delta = fecha - anterior
+            detalle = relativedelta(fecha, anterior)
+            diferencia = f"{detalle.years}a {detalle.months}m {detalle.days}d {detalle.hours}h {detalle.minutes}m"
+        filas.append({
+            "N°": total - i,
+            "Fecha": fecha.strftime("%Y-%m-%d"),
+            "Hora": fecha.strftime("%H:%M"),
+            "Duración sin caer": diferencia
+        })
+    return pd.DataFrame(filas)
+
+def obtener_reflexiones():
+    docs = list(coleccion_reflexiones.find({}).sort("fecha_hora", -1))
+    rows = []
+    for d in docs:
+        fecha = d["fecha_hora"].astimezone(colombia)
+        emociones = ", ".join([e["nombre"] for e in d.get("emociones", [])])
+        rows.append({
+            "Fecha": fecha.strftime("%Y-%m-%d"),
+            "Hora": fecha.strftime("%H:%M"),
+            "Emociones": emociones,
+            "Reflexión": d.get("reflexion", "")
+        })
+    return pd.DataFrame(rows)
 
 def contar_palabras():
     texto = st.session_state.reflexion or ""
@@ -81,23 +113,11 @@ opcion = eventos[seleccion]
 # === MÓDULO EVENTO ===
 if opcion in [evento_a, evento_b]:
     st.header(f"📍 Registro de evento: {seleccion}")
-    usar_manual = st.checkbox("Ingresar fecha y hora manualmente")
-    if usar_manual:
-        fecha = st.date_input("Fecha", datetime.now(colombia).date())
-        hora_texto = st.text_input("Hora (HH:MM)", value=datetime.now(colombia).strftime("%H:%M"))
-        try:
-            hora = datetime.strptime(hora_texto, "%H:%M").time()
-            fecha_hora_evento = colombia.localize(datetime.combine(fecha, hora))
-        except ValueError:
-            st.error("Formato de hora inválido. Usa HH:MM.")
-            fecha_hora_evento = None
-    else:
-        fecha_hora_evento = datetime.now(colombia)
+    fecha_hora_evento = datetime.now(colombia)
 
     if st.button("✅ Registrar evento"):
-        if fecha_hora_evento:
-            registrar_evento(opcion, fecha_hora_evento)
-            st.success(f"Evento '{seleccion}' registrado")
+        registrar_evento(opcion, fecha_hora_evento)
+        st.success(f"Evento '{seleccion}' registrado a las {fecha_hora_evento.strftime('%H:%M:%S')}")
 
     mostrar_racha(opcion, seleccion.split()[0])
 
