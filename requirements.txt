@@ -1,5 +1,9 @@
+# Core de la App
 streamlit==1.35.0
-pymongo==4.6.3
-python-dateutil==2.9.0
+pymongo==4.7.2
 pandas==2.2.2
+pytz==2024.1
+python-dateutil==2.9.0
+
+# Extras visuales y funcionales
 streamlit-extras==0.3.4
