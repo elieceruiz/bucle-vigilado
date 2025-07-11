@@ -119,31 +119,34 @@ if opcion in [evento_a, evento_b]:
 # === MÓDULO REFLEXIÓN ===
 elif opcion == "reflexion":
     st.header("🧠 Registrar reflexión")
+
+    # Mostrar última reflexión registrada
+    ultima = coleccion_reflexiones.find_one({}, sort=[("fecha_hora", -1)])
+    if ultima:
+        fecha = ultima["fecha_hora"].astimezone(colombia)
+        st.caption(f"📌 Última registrada: {fecha.strftime('%Y-%m-%d %H:%M:%S')}")
+
     fecha_hora_reflexion = datetime.now(colombia)
 
     emociones_opciones = [
         "😰 Ansioso", "😡 Irritado / Rabia contenida", "💪 Firme / Decidido",
         "😌 Aliviado / Tranquilo", "😓 Culpable", "🥱 Apático / Cansado", "😔 Triste"
     ]
+
+    if st.session_state.get("reset_reflexion"):
+        st.session_state.texto_reflexion = ""
+        st.session_state.emociones_reflexion = []
+        st.session_state.reset_reflexion = False
+
     emociones = st.multiselect("¿Cómo te sentías?", emociones_opciones, key="emociones_reflexion")
-
     texto_reflexion = st.text_area("¿Querés dejar algo escrito?", height=150, key="texto_reflexion")
-
-    if texto_reflexion.strip():
-        if st.button("🔍 Contar palabras"):
-            palabras = [p for p in texto_reflexion.strip().split() if p.strip(",.?!¡¿")]
-            st.session_state.palabras = len(palabras)
-
-    if "palabras" in st.session_state:
-        st.caption(f"📄 Palabras: {st.session_state.palabras}")
 
     puede_guardar = texto_reflexion.strip() or emociones
     if st.button("📝 Guardar reflexión", disabled=not puede_guardar):
         guardar_reflexion(fecha_hora_reflexion, emociones, texto_reflexion)
+        st.session_state.reset_reflexion = True
         st.success(f"🧠 Reflexión guardada a las {fecha_hora_reflexion.strftime('%H:%M:%S')}")
-        st.session_state.palabras = 0
-        st.session_state.texto_reflexion = ""
-        st.session_state.emociones_reflexion = []
+        st.rerun()
 
 # === MÓDULO HISTORIAL COMPLETO ===
 elif opcion == "historial":
