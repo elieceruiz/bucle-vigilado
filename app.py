@@ -77,7 +77,6 @@ def obtener_registros(nombre_evento):
         anterior = eventos[i + 1]["fecha_hora"].astimezone(colombia) if i + 1 < len(eventos) else None
         diferencia = ""
         if anterior:
-            delta = fecha - anterior
             detalle = relativedelta(fecha, anterior)
             diferencia = f"{detalle.years}a {detalle.months}m {detalle.days}d {detalle.hours}h {detalle.minutes}m"
         filas.append({
@@ -101,11 +100,6 @@ def obtener_reflexiones():
             "Reflexión": d.get("reflexion", "")
         })
     return pd.DataFrame(rows)
-
-def contar_palabras():
-    texto = st.session_state.reflexion or ""
-    palabras = [p for p in texto.strip().split() if p.strip(",.?!¡¿")]
-    st.session_state.palabras = len(palabras)
 
 # === UI PRINCIPAL ===
 st.title("BucleVigilado")
@@ -142,18 +136,34 @@ if opcion in [evento_a, evento_b]:
 elif opcion == "reflexion":
     st.header("🧠 Registrar reflexión")
     fecha_hora_reflexion = datetime.now(colombia)
+
+    # Inicializar estados
+    if "reflexion" not in st.session_state:
+        st.session_state.reflexion = ""
+    if "palabras" not in st.session_state:
+        st.session_state.palabras = 0
+
     emociones_opciones = [
         "😰 Ansioso", "😡 Irritado / Rabia contenida", "💪 Firme / Decidido",
         "😌 Aliviado / Tranquilo", "😓 Culpable", "🥱 Apático / Cansado", "😔 Triste"
     ]
     emociones = st.multiselect("¿Cómo te sentías?", emociones_opciones)
-    st.text_area("¿Querés dejar algo escrito?", height=150, key="reflexion", on_change=contar_palabras)
-    st.caption(f"📄 Palabras: {st.session_state.get('palabras', 0)}")
+
+    # Entrada y actualización manual
+    texto = st.text_area("¿Querés dejar algo escrito?", value=st.session_state.reflexion, height=150)
+    if texto != st.session_state.reflexion:
+        st.session_state.reflexion = texto
+        palabras = [p for p in texto.strip().split() if p.strip(",.?!¡¿")]
+        st.session_state.palabras = len(palabras)
+
+    st.caption(f"📄 Palabras: {st.session_state.palabras}")
 
     if st.button("📝 Guardar reflexión"):
         if st.session_state.reflexion.strip() or emociones:
             guardar_reflexion(fecha_hora_reflexion, emociones, st.session_state.reflexion)
             st.success("🧠 Reflexión guardada")
+            st.session_state.reflexion = ""
+            st.session_state.palabras = 0
         else:
             st.warning("Escribí algo o seleccioná al menos una emoción.")
 
