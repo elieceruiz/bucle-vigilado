@@ -77,6 +77,7 @@ def obtener_registros(nombre_evento):
         anterior = eventos[i + 1]["fecha_hora"].astimezone(colombia) if i + 1 < len(eventos) else None
         diferencia = ""
         if anterior:
+            delta = fecha - anterior
             detalle = relativedelta(fecha, anterior)
             diferencia = f"{detalle.years}a {detalle.months}m {detalle.days}d {detalle.hours}h {detalle.minutes}m"
         filas.append({
@@ -137,7 +138,6 @@ elif opcion == "reflexion":
     st.header("🧠 Registrar reflexión")
     fecha_hora_reflexion = datetime.now(colombia)
 
-    # Inicializar estados
     if "reflexion" not in st.session_state:
         st.session_state.reflexion = ""
     if "palabras" not in st.session_state:
@@ -149,17 +149,18 @@ elif opcion == "reflexion":
     ]
     emociones = st.multiselect("¿Cómo te sentías?", emociones_opciones)
 
-    # Entrada y actualización manual
-    texto = st.text_area("¿Querés dejar algo escrito?", value=st.session_state.reflexion, height=150)
-    if texto != st.session_state.reflexion:
-        st.session_state.reflexion = texto
-        palabras = [p for p in texto.strip().split() if p.strip(",.?!¡¿")]
+    st.session_state.reflexion = st.text_area("¿Querés dejar algo escrito?", value=st.session_state.reflexion, height=150)
+
+    texto_presente = bool(st.session_state.reflexion.strip())
+
+    if st.button("🔢 Contar palabras", disabled=not texto_presente):
+        palabras = [p for p in st.session_state.reflexion.strip().split() if p.strip(",.?!¡¿")]
         st.session_state.palabras = len(palabras)
 
     st.caption(f"📄 Palabras: {st.session_state.palabras}")
 
     if st.button("📝 Guardar reflexión"):
-        if st.session_state.reflexion.strip() or emociones:
+        if texto_presente or emociones:
             guardar_reflexion(fecha_hora_reflexion, emociones, st.session_state.reflexion)
             st.success("🧠 Reflexión guardada")
             st.session_state.reflexion = ""
