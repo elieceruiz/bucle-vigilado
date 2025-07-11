@@ -38,7 +38,7 @@ st.title("BucleVigilado")
 seleccion = st.selectbox("Seleccioná qué registrar o consultar:", list(eventos.keys()))
 opcion = eventos[seleccion]
 
-# 🧹 Limpieza de campos y botones si se cambia de vista
+# 🧹 Limpieza de campos si se cambia de vista
 if opcion != "reflexion":
     for key in ["texto_reflexion", "emociones_reflexion", "limpiar_reflexion", "📝 Guardar reflexión"]:
         if key in st.session_state:
@@ -127,13 +127,11 @@ if opcion in [evento_a, evento_b]:
 elif opcion == "reflexion":
     st.header("🧠 Registrar reflexión")
 
-    # Limpiar campos si viene del ciclo anterior
     if st.session_state.get("limpiar_reflexion"):
         st.session_state["texto_reflexion"] = ""
         st.session_state["emociones_reflexion"] = []
         st.session_state["limpiar_reflexion"] = False
 
-    # Mostrar última reflexión (sin adornos)
     ultima = coleccion_reflexiones.find_one({}, sort=[("fecha_hora", -1)])
     if ultima:
         fecha = ultima["fecha_hora"].astimezone(colombia)
@@ -153,9 +151,17 @@ elif opcion == "reflexion":
     if puede_guardar:
         if st.button("📝 Guardar reflexión"):
             guardar_reflexion(fecha_hora_reflexion, emociones, texto_reflexion)
-            st.toast("🧠 Reflexión guardada", icon="💾")
+
+            if ultima:
+                ahora = datetime.now(colombia)
+                delta = relativedelta(ahora, ultima["fecha_hora"].astimezone(colombia))
+                tiempo = f"{delta.days}d {delta.hours}h {delta.minutes}m"
+                st.toast(f"🧠 Reflexión guardada (han pasado {tiempo} desde la última)", icon="💾")
+            else:
+                st.toast("🧠 Primera reflexión guardada. ¡Buen comienzo!", icon="🌱")
+
             st.session_state["limpiar_reflexion"] = True
-            st.stop()
+            st.rerun()
 
 # === MÓDULO HISTORIAL COMPLETO ===
 elif opcion == "historial":
