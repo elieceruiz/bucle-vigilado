@@ -62,36 +62,20 @@ def guardar_reflexion(fecha_hora, emociones, reflexion):
     coleccion_reflexiones.insert_one(doc)
 
 def mostrar_racha(nombre_evento, emoji):
-    clave_estado = f"mostrar_racha_{nombre_evento}"
-    if clave_estado not in st.session_state:
-        st.session_state[clave_estado] = False
-
-    mostrar = st.checkbox(
-        "👁️ Mostrar racha" if not st.session_state[clave_estado] else "🙈 Ocultar racha",
-        value=st.session_state[clave_estado],
-        key=f"check_{nombre_evento}"
-    )
-    st.session_state[clave_estado] = mostrar
-
-    st.markdown("### ⏱️ Racha")
-
     if nombre_evento in st.session_state:
         ultimo = st.session_state[nombre_evento]
-        ahora = datetime.now(colombia)
-        delta = ahora - ultimo
-        detalle = relativedelta(ahora, ultimo)
-        minutos = int(delta.total_seconds() // 60)
-        tiempo = f"{detalle.years}a {detalle.months}m {detalle.days}d {detalle.hours}h {detalle.minutes}m {detalle.seconds}s"
-
-        if mostrar:
-            st.metric("Duración", f"{minutos:,} min", tiempo)
-            st.caption(f"🔴 Última recaída: {ultimo.strftime('%Y-%m-%d %H:%M:%S')}")
-        else:
-            st.metric("Duración", "•••••• min", "••a ••m ••d ••h ••m ••s")
-            st.caption("🔴 Última recaída: ••••-••-•• ••:••:••")
-            st.caption("🔒 Información sensible oculta. Presioná la casilla para visualizar.")
+        cronometro = st.empty()
+        st.caption(f"🔴 Última recaída: {ultimo.strftime('%Y-%m-%d %H:%M:%S')}")
+        while True:
+            ahora = datetime.now(colombia)
+            delta = ahora - ultimo
+            detalle = relativedelta(ahora, ultimo)
+            minutos = int(delta.total_seconds() // 60)
+            tiempo = f"{detalle.years}a {detalle.months}m {detalle.days}d {detalle.hours}h {detalle.minutes}m {detalle.seconds}s"
+            cronometro.metric("⏱️ Racha", f"{minutos:,} min", tiempo)
+            time.sleep(1)
     else:
-        st.metric("Duración", "0 min")
+        st.metric("⏱️ Racha", "0 min")
         st.caption("0a 0m 0d 0h 0m 0s")
 
 def obtener_registros(nombre_evento):
@@ -176,6 +160,7 @@ elif opcion == "reflexion":
             else:
                 st.toast("🧠 Primera reflexión guardada. ¡Buen comienzo!", icon="🌱")
 
+            # Vibración y scroll automático
             st.markdown("""
                 <script>
                     if (window.navigator && window.navigator.vibrate) {
