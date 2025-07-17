@@ -66,14 +66,11 @@ def mostrar_racha(nombre_evento, emoji):
     if clave_estado not in st.session_state:
         st.session_state[clave_estado] = False
 
-    mostrar = st.session_state[clave_estado]
-    texto_boton = "👁️ Mostrar racha" if not mostrar else "🙈 Ocultar racha"
-
-    # Botón para alternar visibilidad
+    texto_boton = "👁️ Mostrar racha" if not st.session_state[clave_estado] else "🙈 Ocultar racha"
     if st.button(texto_boton, key=f"btn_{nombre_evento}"):
-        st.session_state[clave_estado] = not mostrar
-        mostrar = not mostrar
+        st.session_state[clave_estado] = not st.session_state[clave_estado]
 
+    mostrar = st.session_state[clave_estado]
     st.markdown("### ⏱️ Racha")
 
     if nombre_evento in st.session_state:
@@ -177,7 +174,6 @@ elif opcion == "reflexion":
             else:
                 st.toast("🧠 Primera reflexión guardada. ¡Buen comienzo!", icon="🌱")
 
-            # Vibración y scroll automático
             st.markdown("""
                 <script>
                     if (window.navigator && window.navigator.vibrate) {
