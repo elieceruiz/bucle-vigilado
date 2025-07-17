@@ -66,11 +66,13 @@ def mostrar_racha(nombre_evento, emoji):
     if clave_estado not in st.session_state:
         st.session_state[clave_estado] = False
 
-    texto_boton = "👁️ Mostrar racha" if not st.session_state[clave_estado] else "🙈 Ocultar racha"
-    if st.button(texto_boton, key=f"btn_{nombre_evento}"):
-        st.session_state[clave_estado] = not st.session_state[clave_estado]
+    mostrar = st.checkbox(
+        "👁️ Mostrar racha" if not st.session_state[clave_estado] else "🙈 Ocultar racha",
+        value=st.session_state[clave_estado],
+        key=f"check_{nombre_evento}"
+    )
+    st.session_state[clave_estado] = mostrar
 
-    mostrar = st.session_state[clave_estado]
     st.markdown("### ⏱️ Racha")
 
     if nombre_evento in st.session_state:
@@ -87,7 +89,7 @@ def mostrar_racha(nombre_evento, emoji):
         else:
             st.metric("Duración", "•••••• min", "••a ••m ••d ••h ••m ••s")
             st.caption("🔴 Última recaída: ••••-••-•• ••:••:••")
-            st.caption("🔒 Información sensible oculta. Presioná el botón para visualizar.")
+            st.caption("🔒 Información sensible oculta. Presioná la casilla para visualizar.")
     else:
         st.metric("Duración", "0 min")
         st.caption("0a 0m 0d 0h 0m 0s")
