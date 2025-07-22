@@ -192,19 +192,36 @@ elif opcion == "reflexion":
 # === MÓDULO HISTORIAL COMPLETO ===
 elif opcion == "historial":
     st.header("📑 Historial completo")
-    tabs = st.tabs(["✊🏽 Iniciativa Aquella", "💸 Iniciativa de Pago", "🧠 Reflexiones"])
 
+    tabs = st.tabs(["🧠 Reflexiones", "✊🏽 Iniciativa Aquella", "💸 Iniciativa de Pago"])
+
+    # TAB Reflexiones
     with tabs[0]:
-        st.subheader(f"📍 Registros de {evento_a}")
-        st.dataframe(obtener_registros(evento_a), use_container_width=True, hide_index=True)
-
-    with tabs[1]:
-        st.subheader(f"📍 Registros de {evento_b}")
-        st.dataframe(obtener_registros(evento_b), use_container_width=True, hide_index=True)
-
-    with tabs[2]:
         st.subheader("📍 Historial de reflexiones")
         df_r = obtener_reflexiones()
         for i, row in df_r.iterrows():
             with st.expander(f"{row['Fecha']} {row['Hora']} — {row['Emociones']}"):
                 st.write(row["Reflexión"])
+
+    # Función compartida para eventos
+    def mostrar_tabla_eventos(nombre_evento):
+        st.subheader(f"📍 Registros de {nombre_evento}")
+        ocultar = st.checkbox(f"Ocultar datos sensibles – {nombre_evento}", key=f"ocultar_{nombre_evento}")
+        df = obtener_registros(nombre_evento)
+        if ocultar:
+            df_oculto = df.copy()
+            df_oculto["Fecha"] = "••••-••-••"
+            df_oculto["Hora"] = "••:••"
+            df_oculto["Duración sin caer"] = "••a ••m ••d ••h ••m"
+            st.dataframe(df_oculto, use_container_width=True, hide_index=True)
+            st.caption("🔒 Contenido oculto. Desactivá el check para ver los datos reales.")
+        else:
+            st.dataframe(df, use_container_width=True, hide_index=True)
+
+    # TAB Iniciativa Aquella
+    with tabs[1]:
+        mostrar_tabla_eventos(evento_a)
+
+    # TAB Iniciativa de Pago
+    with tabs[2]:
+        mostrar_tabla_eventos(evento_b)
