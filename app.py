@@ -105,7 +105,7 @@ def obtener_registros(nombre_evento):
             detalle = relativedelta(fecha, anterior)
             diferencia = f"{detalle.years}a {detalle.months}m {detalle.days}d {detalle.hours}h {detalle.minutes}m"
         filas.append({
-            "N°": total - i,
+            "N°": str(total - i),
             "Fecha": fecha.strftime("%d/%m/%Y"),
             "Hora": fecha.strftime("%H:%M"),
             "Sin caer": diferencia
@@ -130,28 +130,22 @@ def mostrar_tabla_eventos(nombre_evento):
     st.subheader(f"📍 Registros de {nombre_evento}")
     mostrar = st.checkbox("Ver/Ocultar registros", value=False, key=f"mostrar_{nombre_evento}")
     df = obtener_registros(nombre_evento)
+
+    columnas = {
+        "N°": st.column_config.TextColumn("N°", width="small"),
+        "Fecha": st.column_config.TextColumn("Fecha", width="medium"),
+        "Hora": st.column_config.TextColumn("Hora", width="medium"),
+        "Sin caer": st.column_config.TextColumn("Sin caer")
+    }
+
     if mostrar:
-        st.dataframe(
-            df,
-            use_container_width=True,
-            hide_index=True,
-            column_config={
-                "N°": st.column_config.Column(width="small")
-            }
-        )
+        st.dataframe(df, use_container_width=True, hide_index=True, column_config=columnas)
     else:
         df_oculto = df.copy()
         df_oculto["Fecha"] = "••/••/••••"
         df_oculto["Hora"] = "••:••"
         df_oculto["Sin caer"] = "••a ••m ••d ••h ••m"
-        st.dataframe(
-            df_oculto,
-            use_container_width=True,
-            hide_index=True,
-            column_config={
-                "N°": st.column_config.Column(width="small")
-            }
-        )
+        st.dataframe(df_oculto, use_container_width=True, hide_index=True, column_config=columnas)
         st.caption("🔒 Registros ocultos. Activá el check para visualizar.")
 
 # === MÓDULO EVENTO ===
