@@ -212,7 +212,7 @@ elif opcion == "historial":
             df_oculto = df.copy()
             df_oculto["Fecha"] = "••••-••-••"
             df_oculto["Hora"] = "••:••"
-            df_oculto["Racha"] = "••a ••m ••d ••h ••m"
+            df_oculto["Duración sin caer"] = "••a ••m ••d ••h ••m"
             st.dataframe(df_oculto, use_container_width=True, hide_index=True)
             st.caption("🔒 Registros ocultos. Activá el check para visualizar.")
 
