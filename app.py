@@ -103,10 +103,10 @@ def obtener_registros(nombre_evento):
         if anterior:
             delta = fecha - anterior
             detalle = relativedelta(fecha, anterior)
-            diferencia = f"0a {detalle.days}d {detalle.hours}h {detalle.minutes}m"
+            diferencia = f"{detalle.years}a {detalle.months}m {detalle.days}d {detalle.hours}h {detalle.minutes}m"
         filas.append({
-            "N°": str(total - i),
-            "Fecha": fecha.strftime("%d/%m/%Y"),
+            "N°": total - i,
+            "Fecha": fecha.strftime("%Y-%m-%d"),
             "Hora": fecha.strftime("%H:%M"),
             "Sin caer": diferencia
         })
@@ -206,22 +206,34 @@ elif opcion == "historial":
         st.subheader(f"📍 Registros de {nombre_evento}")
         mostrar = st.checkbox("Ver/Ocultar registros", value=False, key=f"mostrar_{nombre_evento}")
         df = obtener_registros(nombre_evento)
-
-        columnas = {
-            "N°": st.column_config.TextColumn("N°", width="small"),
-            "Fecha": st.column_config.TextColumn("Fecha", width="small"),
-            "Hora": st.column_config.TextColumn("Hora", width="small"),
-            "Sin caer": st.column_config.TextColumn("Sin caer", width="medium")
-        }
-
         if mostrar:
-            st.dataframe(df, use_container_width=True, hide_index=True, column_config=columnas)
+            st.dataframe(
+                df,
+                use_container_width=True,
+                hide_index=True,
+                column_config={
+                    "N°": st.column_config.TextColumn(width="small"),
+                    "Fecha": st.column_config.TextColumn(width="small"),
+                    "Hora": st.column_config.TextColumn(width="small"),
+                    "Sin caer": st.column_config.TextColumn(width="medium")
+                }
+            )
         else:
             df_oculto = df.copy()
-            df_oculto["Fecha"] = "••/••/••••"
+            df_oculto["Fecha"] = "••••-••-••"
             df_oculto["Hora"] = "••:••"
-            df_oculto["Sin caer"] = "••a ••d ••h ••m"
-            st.dataframe(df_oculto, use_container_width=True, hide_index=True, column_config=columnas)
+            df_oculto["Sin caer"] = "••a ••m ••d ••h ••m"
+            st.dataframe(
+                df_oculto,
+                use_container_width=True,
+                hide_index=True,
+                column_config={
+                    "N°": st.column_config.TextColumn(width="small"),
+                    "Fecha": st.column_config.TextColumn(width="small"),
+                    "Hora": st.column_config.TextColumn(width="small"),
+                    "Sin caer": st.column_config.TextColumn(width="medium")
+                }
+            )
             st.caption("🔒 Registros ocultos. Activá el check para visualizar.")
 
     with tabs[1]:
