@@ -38,7 +38,7 @@ st.title("BucleVigilado")
 seleccion = st.selectbox("Seleccioná qué registrar o consultar:", list(eventos.keys()))
 opcion = eventos[seleccion]
 
-# === LIMPIEZA DE CAMPOS ===
+# 🧹 Limpieza de campos si se cambia de vista
 if opcion != "reflexion":
     for key in ["texto_reflexion", "emociones_reflexion", "limpiar_reflexion", "📝 Guardar reflexión"]:
         if key in st.session_state:
@@ -80,16 +80,16 @@ def mostrar_racha(nombre_evento, emoji):
         tiempo = f"{detalle.years}a {detalle.months}m {detalle.days}d {detalle.hours}h {detalle.minutes}m {detalle.seconds}s"
 
         if mostrar:
-            st.metric("Duración", f"{minutos:,} min", tiempo)
+            st.metric("Sin caer", f"{minutos:,} min", tiempo)
             st.caption(f"🔴 Última recaída: {ultimo.strftime('%Y-%m-%d %H:%M:%S')}")
             time.sleep(1)
             st.rerun()
         else:
-            st.metric("Duración", "•••••• min", "••a ••m ••d ••h ••m ••s")
+            st.metric("Sin caer", "•••••• min", "••a ••m ••d ••h ••m ••s")
             st.caption("🔴 Última recaída: ••••-••-•• ••:••:••")
             st.caption("🔒 Información sensible oculta. Activá la casilla para visualizar.")
     else:
-        st.metric("Duración", "0 min")
+        st.metric("Sin caer", "0 min")
         st.caption("0a 0m 0d 0h 0m 0s")
 
 def obtener_registros(nombre_evento):
@@ -103,7 +103,7 @@ def obtener_registros(nombre_evento):
         if anterior:
             delta = fecha - anterior
             detalle = relativedelta(fecha, anterior)
-            diferencia = f"{detalle.years}a {detalle.months}m {detalle.days}d {detalle.hours}h {detalle.minutes}m"
+            diferencia = f"0a {detalle.days}d {detalle.hours}h {detalle.minutes}m"
         filas.append({
             "N°": str(total - i),
             "Fecha": fecha.strftime("%d/%m/%Y"),
@@ -119,34 +119,12 @@ def obtener_reflexiones():
         fecha = d["fecha_hora"].astimezone(colombia)
         emociones = ", ".join([e["nombre"] for e in d.get("emociones", [])])
         rows.append({
-            "Fecha": fecha.strftime("%d/%m/%Y"),
+            "Fecha": fecha.strftime("%Y-%m-%d"),
             "Hora": fecha.strftime("%H:%M"),
             "Emociones": emociones,
             "Reflexión": d.get("reflexion", "")
         })
     return pd.DataFrame(rows)
-
-def mostrar_tabla_eventos(nombre_evento):
-    st.subheader(f"📍 Registros de {nombre_evento}")
-    mostrar = st.checkbox("Ver/Ocultar registros", value=False, key=f"mostrar_{nombre_evento}")
-    df = obtener_registros(nombre_evento)
-
-    columnas = {
-        "N°": st.column_config.TextColumn("N°", width="small"),
-        "Fecha": st.column_config.TextColumn("Fecha", width="medium"),
-        "Hora": st.column_config.TextColumn("Hora", width="medium"),
-        "Sin caer": st.column_config.TextColumn("Sin caer")
-    }
-
-    if mostrar:
-        st.dataframe(df, use_container_width=True, hide_index=True, column_config=columnas)
-    else:
-        df_oculto = df.copy()
-        df_oculto["Fecha"] = "••/••/••••"
-        df_oculto["Hora"] = "••:••"
-        df_oculto["Sin caer"] = "••a ••m ••d ••h ••m"
-        st.dataframe(df_oculto, use_container_width=True, hide_index=True, column_config=columnas)
-        st.caption("🔒 Registros ocultos. Activá el check para visualizar.")
 
 # === MÓDULO EVENTO ===
 if opcion in [evento_a, evento_b]:
@@ -171,7 +149,7 @@ elif opcion == "reflexion":
     ultima = coleccion_reflexiones.find_one({}, sort=[("fecha_hora", -1)])
     if ultima:
         fecha = ultima["fecha_hora"].astimezone(colombia)
-        st.caption(f"📌 Última registrada: {fecha.strftime('%d/%m/%Y %H:%M:%S')}")
+        st.caption(f"📌 Última registrada: {fecha.strftime('%Y-%m-%d %H:%M:%S')}")
 
     fecha_hora_reflexion = datetime.now(colombia)
 
@@ -223,6 +201,28 @@ elif opcion == "historial":
         for i, row in df_r.iterrows():
             with st.expander(f"{row['Fecha']} {row['Hora']} — {row['Emociones']}"):
                 st.write(row["Reflexión"])
+
+    def mostrar_tabla_eventos(nombre_evento):
+        st.subheader(f"📍 Registros de {nombre_evento}")
+        mostrar = st.checkbox("Ver/Ocultar registros", value=False, key=f"mostrar_{nombre_evento}")
+        df = obtener_registros(nombre_evento)
+
+        columnas = {
+            "N°": st.column_config.TextColumn("N°", width="small"),
+            "Fecha": st.column_config.TextColumn("Fecha", width="small"),
+            "Hora": st.column_config.TextColumn("Hora", width="small"),
+            "Sin caer": st.column_config.TextColumn("Sin caer", width="medium")
+        }
+
+        if mostrar:
+            st.dataframe(df, use_container_width=True, hide_index=True, column_config=columnas)
+        else:
+            df_oculto = df.copy()
+            df_oculto["Fecha"] = "••/••/••••"
+            df_oculto["Hora"] = "••:••"
+            df_oculto["Sin caer"] = "••a ••d ••h ••m"
+            st.dataframe(df_oculto, use_container_width=True, hide_index=True, column_config=columnas)
+            st.caption("🔒 Registros ocultos. Activá el check para visualizar.")
 
     with tabs[1]:
         mostrar_tabla_eventos(evento_a)
