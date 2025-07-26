@@ -126,6 +126,30 @@ def obtener_reflexiones():
         })
     return pd.DataFrame(rows)
 
+def mostrar_tabla_eventos(nombre_evento):
+    st.subheader(f"📍 Registros de {nombre_evento}")
+    mostrar = st.checkbox("Ver/Ocultar registros", value=False, key=f"mostrar_{nombre_evento}")
+    df = obtener_registros(nombre_evento)
+    if mostrar:
+        st.dataframe(
+            df,
+            use_container_width=True,
+            hide_index=True,
+            column_config={"Hora": st.column_config.Column(width="small")}
+        )
+    else:
+        df_oculto = df.copy()
+        df_oculto["Fecha"] = "••••-••-••"
+        df_oculto["Hora"] = "••:••"
+        df_oculto["Duración sin caer"] = "••a ••m ••d ••h ••m"
+        st.dataframe(
+            df_oculto,
+            use_container_width=True,
+            hide_index=True,
+            column_config={"Hora": st.column_config.Column(width="small")}
+        )
+        st.caption("🔒 Registros ocultos. Activá el check para visualizar.")
+
 # === MÓDULO EVENTO ===
 if opcion in [evento_a, evento_b]:
     st.header(f"📍 Registro de evento: {seleccion}")
@@ -201,20 +225,6 @@ elif opcion == "historial":
         for i, row in df_r.iterrows():
             with st.expander(f"{row['Fecha']} {row['Hora']} — {row['Emociones']}"):
                 st.write(row["Reflexión"])
-
-    def mostrar_tabla_eventos(nombre_evento):
-        st.subheader(f"📍 Registros de {nombre_evento}")
-        mostrar = st.checkbox("Ver/Ocultar registros", value=False, key=f"mostrar_{nombre_evento}")
-        df = obtener_registros(nombre_evento)
-        if mostrar:
-            st.dataframe(df, use_container_width=True, hide_index=True)
-        else:
-            df_oculto = df.copy()
-            df_oculto["Fecha"] = "••••-••-••"
-            df_oculto["Hora"] = "••:••"
-            df_oculto["Duración sin caer"] = "••a ••m ••d ••h ••m"
-            st.dataframe(df_oculto, use_container_width=True, hide_index=True)
-            st.caption("🔒 Registros ocultos. Activá el check para visualizar.")
 
     with tabs[1]:
         mostrar_tabla_eventos(evento_a)
