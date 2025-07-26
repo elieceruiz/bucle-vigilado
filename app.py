@@ -134,7 +134,10 @@ def mostrar_tabla_eventos(nombre_evento):
         st.dataframe(
             df,
             use_container_width=True,
-            hide_index=True
+            hide_index=True,
+            column_config={
+                "N°": st.column_config.Column(width="small")
+            }
         )
     else:
         df_oculto = df.copy()
@@ -144,7 +147,10 @@ def mostrar_tabla_eventos(nombre_evento):
         st.dataframe(
             df_oculto,
             use_container_width=True,
-            hide_index=True
+            hide_index=True,
+            column_config={
+                "N°": st.column_config.Column(width="small")
+            }
         )
         st.caption("🔒 Registros ocultos. Activá el check para visualizar.")
 
