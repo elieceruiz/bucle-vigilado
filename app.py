@@ -38,7 +38,7 @@ st.title("BucleVigilado")
 seleccion = st.selectbox("Seleccioná qué registrar o consultar:", list(eventos.keys()))
 opcion = eventos[seleccion]
 
-# 🧹 Limpieza de campos si se cambia de vista
+# === LIMPIEZA DE CAMPOS ===
 if opcion != "reflexion":
     for key in ["texto_reflexion", "emociones_reflexion", "limpiar_reflexion", "📝 Guardar reflexión"]:
         if key in st.session_state:
@@ -108,7 +108,7 @@ def obtener_registros(nombre_evento):
             "N°": total - i,
             "Fecha": fecha.strftime("%Y-%m-%d"),
             "Hora": fecha.strftime("%H:%M"),
-            "Duración sin caer": diferencia
+            "Sin caer": diferencia
         })
     return pd.DataFrame(filas)
 
@@ -134,19 +134,17 @@ def mostrar_tabla_eventos(nombre_evento):
         st.dataframe(
             df,
             use_container_width=True,
-            hide_index=True,
-            column_config={"Hora": st.column_config.Column(width="small")}
+            hide_index=True
         )
     else:
         df_oculto = df.copy()
         df_oculto["Fecha"] = "••••-••-••"
         df_oculto["Hora"] = "••:••"
-        df_oculto["Duración sin caer"] = "••a ••m ••d ••h ••m"
+        df_oculto["Sin caer"] = "••a ••m ••d ••h ••m"
         st.dataframe(
             df_oculto,
             use_container_width=True,
-            hide_index=True,
-            column_config={"Hora": st.column_config.Column(width="small")}
+            hide_index=True
         )
         st.caption("🔒 Registros ocultos. Activá el check para visualizar.")
 
