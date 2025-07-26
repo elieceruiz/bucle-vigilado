@@ -80,16 +80,16 @@ def mostrar_racha(nombre_evento, emoji):
         tiempo = f"{detalle.years}a {detalle.months}m {detalle.days}d {detalle.hours}h {detalle.minutes}m {detalle.seconds}s"
 
         if mostrar:
-            st.metric("Sin caer", f"{minutos:,} min", tiempo)
+            st.metric("Duración", f"{minutos:,} min", tiempo)
             st.caption(f"🔴 Última recaída: {ultimo.strftime('%Y-%m-%d %H:%M:%S')}")
             time.sleep(1)
             st.rerun()
         else:
-            st.metric("Sin caer", "•••••• min", "••a ••m ••d ••h ••m ••s")
+            st.metric("Duración", "•••••• min", "••a ••m ••d ••h ••m ••s")
             st.caption("🔴 Última recaída: ••••-••-•• ••:••:••")
             st.caption("🔒 Información sensible oculta. Activá la casilla para visualizar.")
     else:
-        st.metric("Sin caer", "0 min")
+        st.metric("Duración", "0 min")
         st.caption("0a 0m 0d 0h 0m 0s")
 
 def obtener_registros(nombre_evento):
@@ -108,7 +108,7 @@ def obtener_registros(nombre_evento):
             "N°": total - i,
             "Fecha": fecha.strftime("%Y-%m-%d"),
             "Hora": fecha.strftime("%H:%M"),
-            "Sin caer": diferencia
+            "Duración sin caer": diferencia
         })
     return pd.DataFrame(filas)
 
@@ -207,33 +207,13 @@ elif opcion == "historial":
         mostrar = st.checkbox("Ver/Ocultar registros", value=False, key=f"mostrar_{nombre_evento}")
         df = obtener_registros(nombre_evento)
         if mostrar:
-            st.dataframe(
-                df,
-                use_container_width=True,
-                hide_index=True,
-                column_config={
-                    "N°": st.column_config.TextColumn(width="small"),
-                    "Fecha": st.column_config.TextColumn(width="small"),
-                    "Hora": st.column_config.TextColumn(width="small"),
-                    "Sin caer": st.column_config.TextColumn(width="medium")
-                }
-            )
+            st.dataframe(df, use_container_width=True, hide_index=True)
         else:
             df_oculto = df.copy()
             df_oculto["Fecha"] = "••••-••-••"
             df_oculto["Hora"] = "••:••"
-            df_oculto["Sin caer"] = "••a ••m ••d ••h ••m"
-            st.dataframe(
-                df_oculto,
-                use_container_width=True,
-                hide_index=True,
-                column_config={
-                    "N°": st.column_config.TextColumn(width="small"),
-                    "Fecha": st.column_config.TextColumn(width="small"),
-                    "Hora": st.column_config.TextColumn(width="small"),
-                    "Sin caer": st.column_config.TextColumn(width="medium")
-                }
-            )
+            df_oculto["Duración sin caer"] = "••a ••m ••d ••h ••m"
+            st.dataframe(df_oculto, use_container_width=True, hide_index=True)
             st.caption("🔒 Registros ocultos. Activá el check para visualizar.")
 
     with tabs[1]:
