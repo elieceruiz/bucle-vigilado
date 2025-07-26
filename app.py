@@ -106,7 +106,7 @@ def obtener_registros(nombre_evento):
             diferencia = f"{detalle.years}a {detalle.months}m {detalle.days}d {detalle.hours}h {detalle.minutes}m"
         filas.append({
             "N°": total - i,
-            "Fecha": fecha.strftime("%Y-%m-%d"),
+            "Fecha": fecha.strftime("%d/%m/%Y"),
             "Hora": fecha.strftime("%H:%M"),
             "Sin caer": diferencia
         })
@@ -119,7 +119,7 @@ def obtener_reflexiones():
         fecha = d["fecha_hora"].astimezone(colombia)
         emociones = ", ".join([e["nombre"] for e in d.get("emociones", [])])
         rows.append({
-            "Fecha": fecha.strftime("%Y-%m-%d"),
+            "Fecha": fecha.strftime("%d/%m/%Y"),
             "Hora": fecha.strftime("%H:%M"),
             "Emociones": emociones,
             "Reflexión": d.get("reflexion", "")
@@ -138,7 +138,7 @@ def mostrar_tabla_eventos(nombre_evento):
         )
     else:
         df_oculto = df.copy()
-        df_oculto["Fecha"] = "••••-••-••"
+        df_oculto["Fecha"] = "••/••/••••"
         df_oculto["Hora"] = "••:••"
         df_oculto["Sin caer"] = "••a ••m ••d ••h ••m"
         st.dataframe(
@@ -171,7 +171,7 @@ elif opcion == "reflexion":
     ultima = coleccion_reflexiones.find_one({}, sort=[("fecha_hora", -1)])
     if ultima:
         fecha = ultima["fecha_hora"].astimezone(colombia)
-        st.caption(f"📌 Última registrada: {fecha.strftime('%Y-%m-%d %H:%M:%S')}")
+        st.caption(f"📌 Última registrada: {fecha.strftime('%d/%m/%Y %H:%M:%S')}")
 
     fecha_hora_reflexion = datetime.now(colombia)
 
