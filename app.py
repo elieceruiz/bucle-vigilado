@@ -1,5 +1,5 @@
 import streamlit as st
-from datetime import datetime
+from datetime import datetime, timedelta
 from pymongo import MongoClient
 import pytz
 import pandas as pd
@@ -15,6 +15,7 @@ client = MongoClient(st.secrets["mongo_uri"])
 db = client["registro_bucle"]
 coleccion_eventos = db["eventos"]
 coleccion_reflexiones = db["reflexiones"]
+coleccion_hitos = db["hitos"]
 
 # === EVENT DEFINITIONS ===
 evento_a = "La Iniciativa Aquella"
@@ -61,6 +62,20 @@ def guardar_reflexion(fecha_hora, emociones, reflexion):
     }
     coleccion_reflexiones.insert_one(doc)
 
+def registrar_hito(evento, hito, fecha_inicio, fecha_registro):
+    ya_registrado = coleccion_hitos.find_one({
+        "evento": evento,
+        "hito": hito,
+        "desde": fecha_inicio
+    })
+    if not ya_registrado:
+        coleccion_hitos.insert_one({
+            "evento": evento,
+            "hito": hito,
+            "desde": fecha_inicio,
+            "fecha_registro": fecha_registro
+        })
+
 def mostrar_racha(nombre_evento, emoji):
     clave_estado = f"mostrar_racha_{nombre_evento}"
     if clave_estado not in st.session_state:
@@ -83,7 +98,6 @@ def mostrar_racha(nombre_evento, emoji):
             st.metric("Duración", f"{minutos:,} min", tiempo)
             st.caption(f"🔴 Última recaída: {ultimo.strftime('%Y-%m-%d %H:%M:%S')}")
 
-            # === SOLO APLICA PARA LA INICIATIVA AQUELLA ===
             if nombre_evento == "La Iniciativa Aquella":
                 registros = list(coleccion_eventos.find({"evento": nombre_evento}).sort("fecha_hora", -1))
 
@@ -97,12 +111,30 @@ def mostrar_racha(nombre_evento, emoji):
 
                     record = max(duraciones)
                     record_str = str(record).split('.')[0]
-                    progreso_actual = delta.total_seconds() / record.total_seconds()
-                    porcentaje = min(progreso_actual * 100, 100)  # tope 100%
+
+                    # HITOS CLAVE
+                    umbral = timedelta(days=3)
+                    meta_5 = timedelta(days=5)
+                    meta_21 = timedelta(days=21)
+                    fecha_ultimo_evento = registros[0]["fecha_hora"].astimezone(colombia)
+
+                    if delta > umbral:
+                        st.success("✅ Superaste la zona crítica de las 72 horas.")
+                        registrar_hito(nombre_evento, "3 días", fecha_ultimo_evento, ahora)
+                    if delta > meta_5:
+                        st.success("🌱 ¡Sostenés 5 días! Se está instalando un nuevo hábito.")
+                        registrar_hito(nombre_evento, "5 días", fecha_ultimo_evento, ahora)
+                    if delta > meta_21:
+                        st.success("🏗️ 21 días: ya creaste una estructura sólida.")
+                        registrar_hito(nombre_evento, "21 días", fecha_ultimo_evento, ahora)
+
+                    progreso_visual = min(delta.total_seconds() / meta_5.total_seconds(), 1.0)
+                    porcentaje_record = (delta.total_seconds() / record.total_seconds()) * 100
 
                     st.markdown(f"🏅 **Récord personal:** `{record_str}`")
-                    st.markdown(f"📊 **Progreso actual:** `{porcentaje:.1f}%` del récord")
-                    st.progress(progreso_actual)
+                    st.markdown(f"📊 **Progreso hacia meta base (5 días):** `{progreso_visual*100:.1f}%`")
+                    st.progress(progreso_visual)
+                    st.markdown(f"📈 **Progreso frente al récord:** `{porcentaje_record:.1f}%`")
 
                     if delta.total_seconds() > 72 * 3600:
                         st.markdown(
