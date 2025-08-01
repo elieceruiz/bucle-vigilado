@@ -82,6 +82,36 @@ def mostrar_racha(nombre_evento, emoji):
         if mostrar:
             st.metric("Duración", f"{minutos:,} min", tiempo)
             st.caption(f"🔴 Última recaída: {ultimo.strftime('%Y-%m-%d %H:%M:%S')}")
+
+            # === SOLO APLICA PARA LA INICIATIVA AQUELLA ===
+            if nombre_evento == "La Iniciativa Aquella":
+                registros = list(coleccion_eventos.find({"evento": nombre_evento}).sort("fecha_hora", -1))
+
+                if len(registros) >= 2:
+                    duraciones = []
+                    for i in range(1, len(registros)):
+                        inicio = registros[i]["fecha_hora"].astimezone(colombia)
+                        fin = registros[i - 1]["fecha_hora"].astimezone(colombia)
+                        duracion = fin - inicio
+                        duraciones.append(duracion)
+
+                    record = max(duraciones)
+                    record_str = str(record).split('.')[0]
+                    progreso_actual = delta.total_seconds() / record.total_seconds()
+                    porcentaje = min(progreso_actual * 100, 100)  # tope 100%
+
+                    st.markdown(f"🏅 **Récord personal:** `{record_str}`")
+                    st.markdown(f"📊 **Progreso actual:** `{porcentaje:.1f}%` del récord")
+                    st.progress(progreso_actual)
+
+                    if delta.total_seconds() > 72 * 3600:
+                        st.markdown(
+                            "<div style='background-color:#ffe0e0;padding:10px;border-radius:10px;margin-top:10px'>"
+                            "🚨 <b>Zona crítica:</b> pasaste las 72h. Este es el umbral donde suelen ocurrir recaídas. Activá tus mecanismos de contención."
+                            "</div>",
+                            unsafe_allow_html=True
+                        )
+
             time.sleep(1)
             st.rerun()
         else:
