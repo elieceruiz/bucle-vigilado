@@ -187,3 +187,96 @@ def obtener_reflexiones():
             "Reflexión": d.get("reflexion", "")
         })
     return pd.DataFrame(rows)
+
+# === MÓDULO EVENTO ===
+if opcion in [evento_a, evento_b]:
+    st.header(f"📍 Registro de evento: {seleccion}")
+    fecha_hora_evento = datetime.now(colombia)
+
+    if st.button("☠️ ¿Registrar?"):
+        registrar_evento(opcion, fecha_hora_evento)
+        st.success(f"Evento '{seleccion}' registrado a las {fecha_hora_evento.strftime('%H:%M:%S')}")
+
+    mostrar_racha(opcion, seleccion.split()[0])
+
+# === MÓDULO REFLEXIÓN ===
+elif opcion == "reflexion":
+    st.header("🧠 Registrar reflexión")
+
+    if st.session_state.get("limpiar_reflexion"):
+        st.session_state["texto_reflexion"] = ""
+        st.session_state["emociones_reflexion"] = []
+        st.session_state["limpiar_reflexion"] = False
+
+    ultima = coleccion_reflexiones.find_one({}, sort=[("fecha_hora", -1)])
+    if ultima:
+        fecha = ultima["fecha_hora"].astimezone(colombia)
+        st.caption(f"📌 Última registrada: {fecha.strftime('%Y-%m-%d %H:%M:%S')}")
+
+    fecha_hora_reflexion = datetime.now(colombia)
+
+    emociones_opciones = [
+        "😰 Ansioso", "😡 Irritado / Rabia contenida", "💪 Firme / Decidido",
+        "😌 Aliviado / Tranquilo", "😓 Culpable", "🥱 Apático / Cansado", "😔 Triste"
+    ]
+
+    emociones = st.multiselect("¿Cómo te sentías?", emociones_opciones, key="emociones_reflexion", placeholder="Seleccioná una o varias emociones")
+    texto_reflexion = st.text_area("¿Querés dejar algo escrito?", height=150, key="texto_reflexion")
+
+    puede_guardar = texto_reflexion.strip() or emociones
+    if puede_guardar:
+        if st.button("📝 Guardar reflexión"):
+            guardar_reflexion(fecha_hora_reflexion, emociones, texto_reflexion)
+
+            if ultima:
+                ahora = datetime.now(colombia)
+                delta = relativedelta(ahora, ultima["fecha_hora"].astimezone(colombia))
+                tiempo = f"{delta.days}d {delta.hours}h {delta.minutes}m"
+                st.toast(f"🧠 Reflexión guardada (han pasado {tiempo} desde la última)", icon="💾")
+            else:
+                st.toast("🧠 Primera reflexión guardada. ¡Buen comienzo!", icon="🌱")
+
+            st.markdown("""
+                <script>
+                    if (window.navigator && window.navigator.vibrate) {
+                        window.navigator.vibrate(100);
+                    }
+                    window.scrollTo({top: 0, behavior: 'smooth'});
+                </script>
+            """, unsafe_allow_html=True)
+
+            st.session_state["limpiar_reflexion"] = True
+            st.rerun()
+
+    st.markdown("<div style='margin-bottom: 300px;'></div>", unsafe_allow_html=True)
+
+# === MÓDULO HISTORIAL COMPLETO ===
+elif opcion == "historial":
+    st.header("📑 Historial completo")
+    tabs = st.tabs(["🧠 Reflexiones", "✊🏽 Iniciativa Aquella", "💸 Iniciativa de Pago"])
+
+    with tabs[0]:
+        st.subheader("📍 Historial de reflexiones")
+        df_r = obtener_reflexiones()
+        for i, row in df_r.iterrows():
+            with st.expander(f"{row['Fecha']} {row['Hora']} — {row['Emociones']}"):
+                st.write(row["Reflexión"])
+
+    def mostrar_tabla_eventos(nombre_evento):
+        st.subheader(f"📍 Registros de {nombre_evento}")
+        mostrar = st.checkbox("Ver/Ocultar registros", value=False, key=f"mostrar_{nombre_evento}")
+        df = obtener_registros(nombre_evento)
+        if mostrar:
+            st.dataframe(df, use_container_width=True, hide_index=True)
+        else:
+            df_oculto = df.copy()
+            df_oculto["Fecha"] = "••••-••-••"
+            df_oculto["Hora"] = "••:••"
+            df_oculto["Duración sin caer"] = "••a ••m ••d ••h ••m"
+            st.dataframe(df_oculto, use_container_width=True, hide_index=True)
+            st.caption("🔒 Registros ocultos. Activá el check para visualizar.")
+
+    with tabs[1]:
+        mostrar_tabla_eventos(evento_a)
+    with tabs[2]:
+        mostrar_tabla_eventos(evento_b)
