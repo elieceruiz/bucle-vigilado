@@ -6,18 +6,19 @@ import pandas as pd
 from dateutil.relativedelta import relativedelta
 import time
 
-# === CONFIG ===
+# === CONFIGURACIÓN GENERAL ===
 st.set_page_config(page_title="BucleVigiladoApp", layout="centered")
 colombia = pytz.timezone("America/Bogota")
 
-# === DATABASE CONNECTION ===
+# === CONEXIÓN A MONGO ===
 client = MongoClient(st.secrets["mongo_uri"])
 db = client["registro_bucle"]
 coleccion_eventos = db["eventos"]
 coleccion_reflexiones = db["reflexiones"]
 coleccion_hitos = db["hitos"]
+coleccion_visual = db["log_visual"]
 
-# === EVENT DEFINITIONS ===
+# === DEFINICIÓN DE EVENTOS ===
 evento_a = "La Iniciativa Aquella"
 evento_b = "La Iniciativa de Pago"
 eventos = {
@@ -27,31 +28,16 @@ eventos = {
     f"💸 {evento_b}": evento_b,
 }
 
-# === STATE ===
+# === ESTADO INICIAL ===
 for key in [evento_a, evento_b]:
     if key not in st.session_state:
         evento = coleccion_eventos.find_one({"evento": key}, sort=[("fecha_hora", -1)])
         if evento:
             st.session_state[key] = evento["fecha_hora"].astimezone(colombia)
 
-# === UI PRINCIPAL ===
-st.title("BucleVigilado")
-seleccion = st.selectbox("Seleccioná qué registrar o consultar:", list(eventos.keys()))
-opcion = eventos[seleccion]
-
-# 🧹 Limpieza de campos si se cambia de vista
-if opcion != "reflexion":
-    for key in ["texto_reflexion", "emociones_reflexion", "limpiar_reflexion", "📝 Guardar reflexión"]:
-        if key in st.session_state:
-            del st.session_state[key]
-    st.empty()
-
-# === FUNCIONES ===
+# === FUNCIONES AUXILIARES ===
 def registrar_evento(nombre_evento, fecha_hora):
-    coleccion_eventos.insert_one({
-        "evento": nombre_evento,
-        "fecha_hora": fecha_hora
-    })
+    coleccion_eventos.insert_one({"evento": nombre_evento, "fecha_hora": fecha_hora})
     st.session_state[nombre_evento] = fecha_hora
 
 def guardar_reflexion(fecha_hora, emociones, reflexion):
@@ -63,17 +49,23 @@ def guardar_reflexion(fecha_hora, emociones, reflexion):
     coleccion_reflexiones.insert_one(doc)
 
 def registrar_hito(evento, hito, fecha_inicio, fecha_registro):
-    ya_registrado = coleccion_hitos.find_one({
-        "evento": evento,
-        "hito": hito,
-        "desde": fecha_inicio
-    })
-    if not ya_registrado:
+    if not coleccion_hitos.find_one({"evento": evento, "hito": hito, "desde": fecha_inicio}):
         coleccion_hitos.insert_one({
             "evento": evento,
             "hito": hito,
             "desde": fecha_inicio,
             "fecha_registro": fecha_registro
+        })
+
+def registrar_log_visual(evento, meta, desde, minutos, porcentaje):
+    if not coleccion_visual.find_one({"evento": evento, "meta_activada": meta, "desde": desde}):
+        coleccion_visual.insert_one({
+            "evento": evento,
+            "meta_activada": meta,
+            "desde": desde,
+            "fecha_registro": datetime.now(colombia),
+            "progreso_minutos": minutos,
+            "porcentaje_meta": porcentaje
         })
 
 def mostrar_racha(nombre_evento, emoji):
@@ -100,23 +92,15 @@ def mostrar_racha(nombre_evento, emoji):
 
             if nombre_evento == "La Iniciativa Aquella":
                 registros = list(coleccion_eventos.find({"evento": nombre_evento}).sort("fecha_hora", -1))
-
                 if len(registros) >= 2:
-                    duraciones = []
-                    for i in range(1, len(registros)):
-                        inicio = registros[i]["fecha_hora"].astimezone(colombia)
-                        fin = registros[i - 1]["fecha_hora"].astimezone(colombia)
-                        duracion = fin - inicio
-                        duraciones.append(duracion)
-
+                    duraciones = [(registros[i - 1]["fecha_hora"] - registros[i]["fecha_hora"]) for i in range(1, len(registros))]
                     record = max(duraciones)
                     record_str = str(record).split('.')[0]
+                    fecha_ultimo_evento = registros[0]["fecha_hora"].astimezone(colombia)
 
-                    # HITOS CLAVE
                     umbral = timedelta(days=3)
                     meta_5 = timedelta(days=5)
                     meta_21 = timedelta(days=21)
-                    fecha_ultimo_evento = registros[0]["fecha_hora"].astimezone(colombia)
 
                     if delta > umbral:
                         st.success("✅ Superaste la zona crítica de las 72 horas.")
@@ -128,28 +112,37 @@ def mostrar_racha(nombre_evento, emoji):
                         st.success("🏗️ 21 días: ya creaste una estructura sólida.")
                         registrar_hito(nombre_evento, "21 días", fecha_ultimo_evento, ahora)
 
-                    progreso_visual = min(delta.total_seconds() / meta_5.total_seconds(), 1.0)
+                    if delta < umbral:
+                        meta_actual = umbral
+                        label_meta = "zona crítica (3 días)"
+                    elif delta < meta_5:
+                        meta_actual = meta_5
+                        label_meta = "meta base (5 días)"
+                    elif delta < meta_21:
+                        meta_actual = meta_21
+                        label_meta = "meta sólida (21 días)"
+                    elif delta < record:
+                        meta_actual = record
+                        label_meta = "tu récord"
+                    else:
+                        meta_actual = delta
+                        label_meta = "¡Nuevo récord!"
+
+                    progreso_visual = min(delta.total_seconds() / meta_actual.total_seconds(), 1.0)
                     porcentaje_record = (delta.total_seconds() / record.total_seconds()) * 100
 
+                    registrar_log_visual(nombre_evento, label_meta, fecha_ultimo_evento, minutos, round(progreso_visual * 100, 1))
+
                     st.markdown(f"🏅 **Récord personal:** `{record_str}`")
-                    st.markdown(f"📊 **Progreso hacia meta base (5 días):** `{progreso_visual*100:.1f}%`")
+                    st.markdown(f"📊 **Progreso hacia {label_meta}:** `{progreso_visual*100:.1f}%`")
                     st.progress(progreso_visual)
                     st.markdown(f"📈 **Progreso frente al récord:** `{porcentaje_record:.1f}%`")
-
-                    if delta.total_seconds() > 72 * 3600:
-                        st.markdown(
-                            "<div style='background-color:#ffe0e0;padding:10px;border-radius:10px;margin-top:10px'>"
-                            "🚨 <b>Zona crítica:</b> pasaste las 72h. Este es el umbral donde suelen ocurrir recaídas. Activá tus mecanismos de contención."
-                            "</div>",
-                            unsafe_allow_html=True
-                        )
 
             time.sleep(1)
             st.rerun()
         else:
             st.metric("Duración", "•••••• min", "••a ••m ••d ••h ••m ••s")
-            st.caption("🔴 Última recaída: ••••-••-•• ••:••:••")
-            st.caption("🔒 Información sensible oculta. Activá la casilla para visualizar.")
+            st.caption("🔒 Información sensible oculta.")
     else:
         st.metric("Duración", "0 min")
         st.caption("0a 0m 0d 0h 0m 0s")
@@ -188,7 +181,12 @@ def obtener_reflexiones():
         })
     return pd.DataFrame(rows)
 
-# === MÓDULO EVENTO ===
+# === INTERFAZ PRINCIPAL ===
+st.title("BucleVigilado")
+seleccion = st.selectbox("Seleccioná qué registrar o consultar:", list(eventos.keys()))
+opcion = eventos[seleccion]
+
+# === EVENTOS ===
 if opcion in [evento_a, evento_b]:
     st.header(f"📍 Registro de evento: {seleccion}")
     fecha_hora_evento = datetime.now(colombia)
@@ -199,7 +197,7 @@ if opcion in [evento_a, evento_b]:
 
     mostrar_racha(opcion, seleccion.split()[0])
 
-# === MÓDULO REFLEXIÓN ===
+# === REFLEXIONES ===
 elif opcion == "reflexion":
     st.header("🧠 Registrar reflexión")
 
@@ -214,7 +212,6 @@ elif opcion == "reflexion":
         st.caption(f"📌 Última registrada: {fecha.strftime('%Y-%m-%d %H:%M:%S')}")
 
     fecha_hora_reflexion = datetime.now(colombia)
-
     emociones_opciones = [
         "😰 Ansioso", "😡 Irritado / Rabia contenida", "💪 Firme / Decidido",
         "😌 Aliviado / Tranquilo", "😓 Culpable", "🥱 Apático / Cansado", "😔 Triste"
@@ -227,31 +224,12 @@ elif opcion == "reflexion":
     if puede_guardar:
         if st.button("📝 Guardar reflexión"):
             guardar_reflexion(fecha_hora_reflexion, emociones, texto_reflexion)
-
-            if ultima:
-                ahora = datetime.now(colombia)
-                delta = relativedelta(ahora, ultima["fecha_hora"].astimezone(colombia))
-                tiempo = f"{delta.days}d {delta.hours}h {delta.minutes}m"
-                st.toast(f"🧠 Reflexión guardada (han pasado {tiempo} desde la última)", icon="💾")
-            else:
-                st.toast("🧠 Primera reflexión guardada. ¡Buen comienzo!", icon="🌱")
-
-            st.markdown("""
-                <script>
-                    if (window.navigator && window.navigator.vibrate) {
-                        window.navigator.vibrate(100);
-                    }
-                    window.scrollTo({top: 0, behavior: 'smooth'});
-                </script>
-            """, unsafe_allow_html=True)
-
+            st.toast("🧠 Reflexión guardada", icon="💾")
             st.session_state["limpiar_reflexion"] = True
             time.sleep(0.3)
             st.rerun()
 
-    st.markdown("<div style='margin-bottom: 300px;'></div>", unsafe_allow_html=True)
-
-# === MÓDULO HISTORIAL COMPLETO ===
+# === HISTORIAL ===
 elif opcion == "historial":
     st.header("📑 Historial completo")
 
@@ -260,7 +238,7 @@ elif opcion == "historial":
     with tabs[0]:
         st.subheader("📍 Historial de reflexiones")
         df_r = obtener_reflexiones()
-        for i, row in df_r.iterrows():
+        for _, row in df_r.iterrows():
             with st.expander(f"{row['Fecha']} {row['Hora']} — {row['Emociones']}"):
                 st.write(row["Reflexión"])
 
@@ -280,6 +258,5 @@ elif opcion == "historial":
 
     with tabs[1]:
         mostrar_tabla_eventos(evento_a)
-
     with tabs[2]:
         mostrar_tabla_eventos(evento_b)
