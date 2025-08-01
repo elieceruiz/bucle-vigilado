@@ -1,14 +1,6 @@
-# Interfaz principal
 streamlit
-
-# Conexión a MongoDB
 pymongo
-
-# Manejo de zonas horarias
 pytz
-
-# Manejo de dataframes
-pandas
-
-# Cálculo de diferencias (años, meses, etc.)
 python-dateutil
+streamlit-autorefresh
+pandas
