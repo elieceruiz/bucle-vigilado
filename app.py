@@ -17,7 +17,7 @@ coleccion_eventos = db["eventos"]
 coleccion_reflexiones = db["reflexiones"]
 coleccion_hitos = db["hitos"]
 coleccion_visual = db["log_visual"]
-coleccion_intentos = db["intentos_ingreso"]  # <<< NUEVA COLECCIÓN
+coleccion_intentos = db["intentos_ingreso"]
 
 # === DEFINICIONES DE EVENTO ===
 evento_a = "La Iniciativa Aquella"
@@ -211,16 +211,25 @@ if opcion in [evento_a, evento_b]:
     st.header(f"📍 Registro de evento: {seleccion}")
     fecha_hora_evento = datetime.now(colombia)
 
-    # SOLO PARA "La Iniciativa Aquella" pedimos confirmación de acceso
     if opcion == evento_a:
         st.subheader("🔐 Acceso a contenido sensible")
-        decision = st.radio("¿Querés ingresar?", ["Sí", "No"], horizontal=True)
+
+        if "decision_actual" not in st.session_state:
+            st.session_state["decision_actual"] = None
+
+        decision = st.radio("¿Querés ingresar?", ["Sí", "No"], horizontal=True, key="radio_decision")
+
         if st.button("Confirmar decisión"):
             registrar_intento(opcion, decision.lower(), datetime.now(colombia))
+            st.session_state["decision_actual"] = decision
             if decision == "Sí":
-                mostrar_racha(opcion, seleccion.split()[0])
+                st.success("✅ Acceso autorizado")
             else:
                 st.warning("⛔ Decidiste no ingresar. Quedó registrado tu rechazo.")
+
+        if st.session_state.get("decision_actual") == "Sí":
+            mostrar_racha(opcion, seleccion.split()[0])
+
     else:
         if st.button("☠️ ¿Registrar?"):
             registrar_evento(opcion, fecha_hora_evento)
@@ -230,8 +239,7 @@ if opcion in [evento_a, evento_b]:
 # === MÓDULO REFLEXIÓN ===
 elif opcion == "reflexion":
     st.header("🧠 Registrar reflexión")
-    # ... (igual que antes, sin cambios en esta parte)
-    # Mantengo tu flujo original aquí
+
     if st.session_state.get("limpiar_reflexion"):
         st.session_state["texto_reflexion"] = ""
         st.session_state["emociones_reflexion"] = []
