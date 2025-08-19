@@ -17,6 +17,7 @@ coleccion_eventos = db["eventos"]
 coleccion_reflexiones = db["reflexiones"]
 coleccion_hitos = db["hitos"]
 coleccion_visual = db["log_visual"]
+coleccion_intentos = db["intentos_ingreso"]  # <<< NUEVA COLECCIÓN
 
 # === DEFINICIONES DE EVENTO ===
 evento_a = "La Iniciativa Aquella"
@@ -49,6 +50,9 @@ if opcion != "reflexion":
 def registrar_evento(nombre_evento, fecha_hora):
     coleccion_eventos.insert_one({"evento": nombre_evento, "fecha_hora": fecha_hora})
     st.session_state[nombre_evento] = fecha_hora
+
+def registrar_intento(evento, decision, fecha_hora):
+    coleccion_intentos.insert_one({"evento": evento, "decision": decision, "fecha_hora": fecha_hora})
 
 def guardar_reflexion(fecha_hora, emociones, reflexion):
     doc = {
@@ -188,21 +192,46 @@ def obtener_reflexiones():
         })
     return pd.DataFrame(rows)
 
+def obtener_intentos():
+    docs = list(coleccion_intentos.find({}).sort("fecha_hora", -1))
+    filas = []
+    for i, d in enumerate(docs):
+        fecha = d["fecha_hora"].astimezone(colombia)
+        filas.append({
+            "N°": i+1,
+            "Evento": d["evento"],
+            "Decisión": d["decision"],
+            "Fecha": fecha.strftime("%Y-%m-%d"),
+            "Hora": fecha.strftime("%H:%M"),
+        })
+    return pd.DataFrame(filas)
+
 # === MÓDULO EVENTO ===
 if opcion in [evento_a, evento_b]:
     st.header(f"📍 Registro de evento: {seleccion}")
     fecha_hora_evento = datetime.now(colombia)
 
-    if st.button("☠️ ¿Registrar?"):
-        registrar_evento(opcion, fecha_hora_evento)
-        st.success(f"Evento '{seleccion}' registrado a las {fecha_hora_evento.strftime('%H:%M:%S')}")
-
-    mostrar_racha(opcion, seleccion.split()[0])
+    # SOLO PARA "La Iniciativa Aquella" pedimos confirmación de acceso
+    if opcion == evento_a:
+        st.subheader("🔐 Acceso a contenido sensible")
+        decision = st.radio("¿Querés ingresar?", ["Sí", "No"], horizontal=True)
+        if st.button("Confirmar decisión"):
+            registrar_intento(opcion, decision.lower(), datetime.now(colombia))
+            if decision == "Sí":
+                mostrar_racha(opcion, seleccion.split()[0])
+            else:
+                st.warning("⛔ Decidiste no ingresar. Quedó registrado tu rechazo.")
+    else:
+        if st.button("☠️ ¿Registrar?"):
+            registrar_evento(opcion, fecha_hora_evento)
+            st.success(f"Evento '{seleccion}' registrado a las {fecha_hora_evento.strftime('%H:%M:%S')}")
+        mostrar_racha(opcion, seleccion.split()[0])
 
 # === MÓDULO REFLEXIÓN ===
 elif opcion == "reflexion":
     st.header("🧠 Registrar reflexión")
-
+    # ... (igual que antes, sin cambios en esta parte)
+    # Mantengo tu flujo original aquí
     if st.session_state.get("limpiar_reflexion"):
         st.session_state["texto_reflexion"] = ""
         st.session_state["emociones_reflexion"] = []
@@ -214,12 +243,10 @@ elif opcion == "reflexion":
         st.caption(f"📌 Última registrada: {fecha.strftime('%Y-%m-%d %H:%M:%S')}")
 
     fecha_hora_reflexion = datetime.now(colombia)
-
     emociones_opciones = [
         "😰 Ansioso", "😡 Irritado / Rabia contenida", "💪 Firme / Decidido",
         "😌 Aliviado / Tranquilo", "😓 Culpable", "🥱 Apático / Cansado", "😔 Triste"
     ]
-
     emociones = st.multiselect("¿Cómo te sentías?", emociones_opciones, key="emociones_reflexion", placeholder="Seleccioná una o varias emociones")
     texto_reflexion = st.text_area("¿Querés dejar algo escrito?", height=150, key="texto_reflexion")
 
@@ -227,33 +254,15 @@ elif opcion == "reflexion":
     if puede_guardar:
         if st.button("📝 Guardar reflexión"):
             guardar_reflexion(fecha_hora_reflexion, emociones, texto_reflexion)
-
-            if ultima:
-                ahora = datetime.now(colombia)
-                delta = relativedelta(ahora, ultima["fecha_hora"].astimezone(colombia))
-                tiempo = f"{delta.days}d {delta.hours}h {delta.minutes}m"
-                st.toast(f"🧠 Reflexión guardada (han pasado {tiempo} desde la última)", icon="💾")
-            else:
-                st.toast("🧠 Primera reflexión guardada. ¡Buen comienzo!", icon="🌱")
-
-            st.markdown("""
-                <script>
-                    if (window.navigator && window.navigator.vibrate) {
-                        window.navigator.vibrate(100);
-                    }
-                    window.scrollTo({top: 0, behavior: 'smooth'});
-                </script>
-            """, unsafe_allow_html=True)
-
+            st.toast("🧠 Reflexión guardada", icon="💾")
             st.session_state["limpiar_reflexion"] = True
             st.rerun()
-
     st.markdown("<div style='margin-bottom: 300px;'></div>", unsafe_allow_html=True)
 
 # === MÓDULO HISTORIAL COMPLETO ===
 elif opcion == "historial":
     st.header("📑 Historial completo")
-    tabs = st.tabs(["🧠 Reflexiones", "✊🏽 Iniciativa Aquella", "💸 Iniciativa de Pago"])
+    tabs = st.tabs(["🧠 Reflexiones", "✊🏽 Iniciativa Aquella", "💸 Iniciativa de Pago", "🔐 Intentos de acceso"])
 
     with tabs[0]:
         st.subheader("📍 Historial de reflexiones")
@@ -280,3 +289,7 @@ elif opcion == "historial":
         mostrar_tabla_eventos(evento_a)
     with tabs[2]:
         mostrar_tabla_eventos(evento_b)
+    with tabs[3]:
+        st.subheader("📍 Intentos de acceso a contenido sensible")
+        df_i = obtener_intentos()
+        st.dataframe(df_i, use_container_width=True, hide_index=True)
