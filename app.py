@@ -304,7 +304,7 @@ elif opcion == "historial":
             if st.button("Confirmar decisión", key="btn_iniciativa_historial"):
                 st.session_state["acceso_iniciativa_historial"] = decision
                 registrar_intento(evento_a, decision.lower(), datetime.now(colombia))
-                st.experimental_rerun()
+                st.rerun()
 
         if st.session_state["acceso_iniciativa_historial"] == "Sí":
             mostrar_racha(evento_a, "✊🏽")
