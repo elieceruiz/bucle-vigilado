@@ -259,8 +259,9 @@ elif opcion == "historial":
         st.subheader("📍 Historial de reflexiones")
         df_r = obtener_reflexiones()
         for i, row in df_r.iterrows():
-            with st.expander(f"{row['Fecha']} {row['Hora']} — {row['Emociones']}"):
-                st.write(row["Reflexión"])
+            with st.expander(f"{row['Fecha']} {row['Hora']}"):
+                st.write(f"**Emociones:** {row['Emociones']}")
+                st.write(f"**Reflexión:** {row['Reflexión']}")
 
     def mostrar_tabla_eventos(nombre_evento):
         st.subheader(f"📍 Registros de {nombre_evento}")
