@@ -294,9 +294,28 @@ elif opcion == "historial":
             st.caption("🔒 Registros ocultos. Activá el check para visualizar.")
 
     with tabs[1]:
+        # --- Portero integrado en la pestaña ---
+        if "acceso_iniciativa_historial" not in st.session_state:
+            st.session_state["acceso_iniciativa_historial"] = None
+
+        if st.session_state["acceso_iniciativa_historial"] is None:
+            st.markdown("🔐 Acceso a contenido sensible")
+            decision = st.radio("¿Querés ingresar?", ["Sí", "No"], horizontal=True, key="radio_iniciativa_historial")
+            if st.button("Confirmar decisión", key="btn_iniciativa_historial"):
+                st.session_state["acceso_iniciativa_historial"] = decision
+                registrar_intento(evento_a, decision.lower(), datetime.now(colombia))
+                st.experimental_rerun()
+
+        if st.session_state["acceso_iniciativa_historial"] == "Sí":
+            mostrar_racha(evento_a, "✊🏽")
+        elif st.session_state["acceso_iniciativa_historial"] == "No":
+            st.warning("⛔ Decidiste no ingresar. Quedó registrado tu rechazo.")
+
         mostrar_tabla_eventos(evento_a)
+
     with tabs[2]:
         mostrar_tabla_eventos(evento_b)
+
     with tabs[3]:
         st.subheader("📍 Intentos de acceso a contenido sensible")
         df_i = obtener_intentos()
