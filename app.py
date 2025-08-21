@@ -7,7 +7,7 @@ from dateutil.relativedelta import relativedelta
 from streamlit_autorefresh import st_autorefresh
 
 # === CONFIGURACIÓN ===
-st.set_page_config(page_title="BucleVigiladoApp", layout="centered")
+st.set_page_config(page_title="Reinicia", layout="centered")
 colombia = pytz.timezone("America/Bogota")
 
 # === CONEXIÓN A MONGO ===
@@ -36,7 +36,7 @@ for key in [evento_a, evento_b]:
             st.session_state[key] = evento["fecha_hora"].astimezone(colombia)
 
 # === UI PRINCIPAL ===
-st.title("BucleVigilado")
+st.title("Reinicia")
 seleccion = st.selectbox("Seleccioná qué registrar o consultar:", list(eventos.keys()))
 opcion = eventos[seleccion]
 
