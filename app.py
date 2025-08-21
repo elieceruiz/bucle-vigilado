@@ -253,7 +253,7 @@ elif opcion == "reflexion":
 # === MÓDULO HISTORIAL COMPLETO ===
 elif opcion == "historial":
     st.header("📑 Historial completo")
-    tabs = st.tabs(["🧠 Reflexiones", "✊🏽 Iniciativa Aquella", "💸 Iniciativa de Pago"])
+    tabs = st.tabs(["🧠 Reflexiones", "✊🏽", "💸"])
 
     with tabs[0]:
         st.subheader("📍 Historial de reflexiones")
