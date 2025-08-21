@@ -24,8 +24,8 @@ evento_b = "La Iniciativa de Pago"
 eventos = {
     "🧠 Reflexión": "reflexion",
     "📑 Historial completo": "historial",
-    f"✊🏽 {evento_a}": evento_a,
-    f"💸 {evento_b}": evento_b,
+    "✊🏽": evento_a,
+    "💸": evento_b,
 }
 
 # === ESTADO INICIAL ===
