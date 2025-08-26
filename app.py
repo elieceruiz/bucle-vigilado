@@ -41,7 +41,7 @@ sistema_categorial = {
     "2.1": {"categoria": "Consumo de sexo pago", "subcategoria": "Motivaciones", "descriptor": "Razones personales, sociales y económicas para consumir servicios sexuales pagados.", "observable": "Búsqueda de placer, compañía, evasión, curiosidad, necesidad de afecto."},
     "2.2": {"categoria": "Consumo de sexo pago", "subcategoria": "Prácticas asociadas", "descriptor": "Conductas, rituales y formas de interacción durante el consumo de sexo pago.", "observable": "Formas de acceso, frecuencia, monto pagado, modalidades y lugares."},
     "2.3": {"categoria": "Consumo de sexo pago", "subcategoria": "Representaciones", "descriptor": "Imágenes, discursos y estigmas sobre el sexo pago.", "observable": "Términos como tabú, normal, peligroso; narrativas de aceptación o estigma."},
-    "2.4": {"categoria": "Consumo de sexo pago", "subcategoria": "Efectos en la trayectoria íntima", "descriptor": "Influencias en la evolución de la vida sexual y afectiva.", "observable": "Relatos de aprendizaje, arrepentimiento, gratificación."},
+    "2.4": {"categoria": "Consumo de sexo pago", "subcategoria": "Efectos en la trayectoria íntima", "descriptor": "Influencia en la evolución de la vida sexual y afectiva.", "observable": "Relatos de aprendizaje, arrepentimiento, gratificación."},
     "3.1": {"categoria": "Masturbación", "subcategoria": "Prácticas de autocuidado", "descriptor": "Uso de la masturbación como cuidado personal y bienestar emocional.", "observable": "Relatos sobre relajación, control del estrés, conciliación del sueño."},
     "3.2": {"categoria": "Masturbación", "subcategoria": "Placer y exploración del cuerpo", "descriptor": "Búsqueda de placer a través de la autoexploración corporal.", "observable": "Fantasías, técnicas usadas, experimentación, referencias a placer físico."},
     "3.3": {"categoria": "Masturbación", "subcategoria": "Relación con la intimidad", "descriptor": "Vínculo entre masturbación, privacidad y expresión del deseo.", "observable": "Rituales íntimos, momentos en soledad, ocultamiento social."},
@@ -242,8 +242,26 @@ def obtener_reflexiones():
         })
     return pd.DataFrame(rows)
 
+# Procesar reflexiones pendientes sin categoría al iniciar la app
+def procesar_reflexiones_pendientes():
+    sin_categoria = list(coleccion_reflexiones.find({"categoria_categorial": {"$exists": False}}))
+    if not sin_categoria:
+        return
+    st.info(f"Procesando {len(sin_categoria)} reflexiones sin categoría asignada...")
+    for i, doc in enumerate(sin_categoria, 1):
+        texto = doc.get("reflexion", "").strip()
+        if not texto:
+            continue
+        try:
+            cat = clasificar_reflexion_openai(texto)
+            coleccion_reflexiones.update_one({"_id": doc["_id"]}, {"$set": {"categoria_categorial": cat}})
+            st.write(f"[{i}/{len(sin_categoria)}] Reflexión {doc['_id']} categorizada como {cat}")
+        except Exception as e:
+            st.error(f"Error categorizando reflexión {doc['_id']}: {e}")
+
 procesar_reflexiones_pendientes()
 
+# UI principal
 st.title("Reinicia")
 seleccion = st.selectbox("Seleccioná qué registrar o consultar:", list(eventos.keys()))
 opcion = eventos[seleccion]
@@ -264,18 +282,18 @@ if opcion in [evento_a, evento_b]:
 elif opcion == "reflexion":
     st.header("🧠 Registrar reflexión")
 
-    # Inicializar claves para evitar errores
+    # Inicialización segura para evitar errores
     if "texto_reflexion" not in st.session_state:
         st.session_state["texto_reflexion"] = ""
     if "emociones_reflexion" not in st.session_state:
         st.session_state["emociones_reflexion"] = []
-    if "limpiar_formulario" not in st.session_state:
-        st.session_state["limpiar_formulario"] = False
+    if "limpiar_reflexion" not in st.session_state:
+        st.session_state["limpiar_reflexion"] = False
 
-    if st.session_state["limpiar_formulario"]:
+    if st.session_state["limpiar_reflexion"]:
         st.session_state["texto_reflexion"] = ""
         st.session_state["emociones_reflexion"] = []
-        st.session_state["limpiar_formulario"] = False
+        st.session_state["limpiar_reflexion"] = False
 
     ultima = coleccion_reflexiones.find_one({}, sort=[("fecha_hora", -1)])
     if ultima:
@@ -290,13 +308,13 @@ elif opcion == "reflexion":
 
     emociones = st.multiselect("¿Cómo te sentías?", emociones_opciones, key="emociones_reflexion", placeholder="Seleccioná una o varias emociones")
     texto_reflexion = st.text_area("¿Querés dejar algo escrito?", height=150, key="texto_reflexion")
-    puede_guardar = texto_reflexion.strip() or emociones
 
+    puede_guardar = texto_reflexion.strip() or emociones
     if puede_guardar:
         if st.button("📝 Guardar reflexión"):
             categoria_asignada = guardar_reflexion(fecha_hora_reflexion, emociones, texto_reflexion)
             st.success(f"Reflexión guardada con categoría: {categoria_asignada}")
-            st.session_state["limpiar_formulario"] = True
+            st.session_state["limpiar_reflexion"] = True
             st.experimental_rerun()
 
 elif opcion == "historial":
@@ -312,7 +330,7 @@ elif opcion == "historial":
                 st.markdown(f"*Emociones:* {row['Emociones']}")
                 st.write(row['Reflexión'])
                 st.markdown("---")
-                st.markdown(f"**Categoría:** {row['Categoria']}")
+                st.markdown(f"**Categoría:** {row['Categoría']}")
                 st.markdown(f"**Subcategoría:** {row['Subcategoría']}")
                 st.markdown(f"**Descriptor:** {row['Descriptor']}")
                 st.markdown(f"**Observable:** {row['Observable']}")
