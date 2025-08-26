@@ -305,7 +305,7 @@ elif opcion == "reflexion":
             categoria_asignada = guardar_reflexion(fecha_hora_reflexion, emociones, texto_reflexion)
             st.success(f"Reflexión guardada con categoría: {categoria_asignada}")
             st.session_state["limpiar_reflexion"] = True
-            st.experimental_rerun()
+            st.rerun()
 
 elif opcion == "historial":
     st.header("📑 Historial completo")
