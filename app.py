@@ -220,7 +220,8 @@ def obtener_reflexiones():
     rows = []
     for d in docs:
         fecha = d["fecha_hora"].astimezone(colombia)
-        emociones = ", ".join([e.get("nombre", "") for e in d.get("emociones", [])])
+        emociones_nombres = ", ".join([e.get("nombre", "") for e in d.get("emociones", [])])
+        emociones_emojis = "".join([e.get("emoji", "") for e in d.get("emociones", [])])
         cat_key = d.get("categoria_categorial", "")
         info = sistema_categorial.get(cat_key, {
             "categoria": "Sin categoría",
@@ -231,7 +232,8 @@ def obtener_reflexiones():
         rows.append({
             "Fecha": fecha.strftime("%Y-%m-%d"),
             "Hora": fecha.strftime("%H:%M"),
-            "Emociones": emociones,
+            "Emociones": emociones_nombres,
+            "Emojis": emociones_emojis,
             "Categoría": info["categoria"],
             "Subcategoría": info["subcategoria"],
             "Descriptor": info["descriptor"],
@@ -240,7 +242,6 @@ def obtener_reflexiones():
         })
     return pd.DataFrame(rows)
 
-# Procesar reflexiones pendientes sin categoría al iniciar la app
 def procesar_reflexiones_pendientes():
     sin_categoria = list(coleccion_reflexiones.find({"categoria_categorial": {"$exists": False}}))
     if not sin_categoria:
@@ -277,7 +278,6 @@ if opcion in [evento_a, evento_b]:
 
 elif opcion == "reflexion":
     st.header("🧠 Registrar reflexión")
-    # Inicializar para evitar errores de sesión
     if "texto_reflexion" not in st.session_state:
         st.session_state["texto_reflexion"] = ""
     if "emociones_reflexion" not in st.session_state:
@@ -310,14 +310,8 @@ elif opcion == "historial":
     with tabs[0]:
         st.subheader("📍 Historial de reflexiones")
         df_r = obtener_reflexiones()
-        
-        emojis_set = {"😰", "😡", "💪", "😌", "😓", "🥱", "😔"}  # Ajustar según tus emojis
-
         for i, row in df_r.iterrows():
-            # Extraer emojis para título
-            emociones_emoji = "".join(ch for ch in row['Emociones'] if ch in emojis_set)
-            exp_label = f"{row['Fecha']} {emociones_emoji}"
-
+            exp_label = f"{row['Fecha']} {row['Emojis']}"
             with st.expander(exp_label):
                 st.markdown(f"*Emociones:* {row['Emociones']}")
                 st.write(row['Reflexión'])
