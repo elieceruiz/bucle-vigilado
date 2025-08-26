@@ -32,6 +32,22 @@ eventos = {
     "💸": evento_b,
 }
 
+# === SISTEMA CATEGORIAL USADO EN FASE 2 PARA NOMBRES AMIGABLES ===
+sistema_categorial = {
+    "1.1": {"categoria": "Dinámicas cotidianas", "subcategoria": "Organización del tiempo"},
+    "1.2": {"categoria": "Dinámicas cotidianas", "subcategoria": "Relaciones sociales"},
+    "1.3": {"categoria": "Dinámicas cotidianas", "subcategoria": "Contextos de intimidad"},
+    "1.4": {"categoria": "Dinámicas cotidianas", "subcategoria": "Factores emocionales"},
+    "2.1": {"categoria": "Consumo de sexo pago", "subcategoria": "Motivaciones"},
+    "2.2": {"categoria": "Consumo de sexo pago", "subcategoria": "Prácticas asociadas"},
+    "2.3": {"categoria": "Consumo de sexo pago", "subcategoria": "Representaciones"},
+    "2.4": {"categoria": "Consumo de sexo pago", "subcategoria": "Efectos en la trayectoria íntima"},
+    "3.1": {"categoria": "Masturbación", "subcategoria": "Prácticas de autocuidado"},
+    "3.2": {"categoria": "Masturbación", "subcategoria": "Placer y exploración del cuerpo"},
+    "3.3": {"categoria": "Masturbación", "subcategoria": "Relación con la intimidad"},
+    "3.4": {"categoria": "Masturbación", "subcategoria": "Representaciones culturales"},
+}
+
 # === ESTADO INICIAL ===
 for key in [evento_a, evento_b]:
     if key not in st.session_state:
@@ -40,7 +56,6 @@ for key in [evento_a, evento_b]:
             st.session_state[key] = evento["fecha_hora"].astimezone(colombia)
 
 # === FUNCIONES ===
-
 def clasificar_reflexion_openai(texto_reflexion: str) -> str:
     prompt = f"""\
 Sistema categorial para clasificar reflexiones:
@@ -185,6 +200,7 @@ def mostrar_racha(nombre_evento, emoji):
         st.metric("Duración", "0 min")
         st.caption("0a 0m 0d 0h 0m 0s")
 
+
 def obtener_registros(nombre_evento):
     eventos = list(coleccion_eventos.find({"evento": nombre_evento}).sort("fecha_hora", -1))
     filas = []
@@ -204,16 +220,21 @@ def obtener_registros(nombre_evento):
         })
     return pd.DataFrame(filas)
 
+
 def obtener_reflexiones():
     docs = list(coleccion_reflexiones.find({}).sort("fecha_hora", -1))
     rows = []
     for d in docs:
         fecha = d["fecha_hora"].astimezone(colombia)
         emociones = ", ".join([e["nombre"] for e in d.get("emociones", [])])
+        codigo_cat = d.get("categoria_categorial", "")
+        info_cat = sistema_categorial.get(codigo_cat, {"categoria": "Sin categoría", "subcategoria": ""})
         rows.append({
             "Fecha": fecha.strftime("%Y-%m-%d"),
             "Hora": fecha.strftime("%H:%M"),
             "Emociones": emociones,
+            "Categoría": info_cat["categoria"],
+            "Subcategoría": info_cat["subcategoria"],
             "Reflexión": d.get("reflexion", "")
         })
     return pd.DataFrame(rows)
@@ -275,7 +296,7 @@ elif opcion == "reflexion":
         if st.button("📝 Guardar reflexión"):
             categoria_asignada = guardar_reflexion(fecha_hora_reflexion, emociones, texto_reflexion)
             st.success(f"Reflexión guardada con categoría: {categoria_asignada}")
-            st.session_state["limpiar_reflexion"] = True  # Limpieza segura sin reinicio abrupto
+            st.session_state["limpiar_reflexion"] = True
 
     st.markdown("<div style='margin-bottom: 300px;'></div>", unsafe_allow_html=True)
 
@@ -288,7 +309,7 @@ elif opcion == "historial":
         st.subheader("📍 Historial de reflexiones")
         df_r = obtener_reflexiones()
         for i, row in df_r.iterrows():
-            with st.expander(f"{row['Fecha']} {row['Hora']}"):
+            with st.expander(f"{row['Fecha']} {row['Hora']} - {row['Categoría']} / {row['Subcategoría']}"):
                 st.write(f"**Emociones:** {row['Emociones']}")
                 st.write(f"**Reflexión:** {row['Reflexión']}")
 
