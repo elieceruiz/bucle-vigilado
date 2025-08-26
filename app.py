@@ -218,6 +218,16 @@ def obtener_reflexiones():
         })
     return pd.DataFrame(rows)
 
+# === UI PRINCIPAL ===
+st.title("Reinicia")
+seleccion = st.selectbox("Seleccioná qué registrar o consultar:", list(eventos.keys()))
+opcion = eventos[seleccion]
+
+# 🧹 Limpieza de estado al cambiar vista
+if opcion != "reflexion":
+    for key in ["texto_reflexion", "emociones_reflexion", "limpiar_reflexion", "📝 Guardar reflexión"]:
+        st.session_state.pop(key, None)
+
 # === MÓDULO EVENTO ===
 if opcion in [evento_a, evento_b]:
     st.header(f"📍 Registro de evento: {seleccion}")
@@ -257,7 +267,7 @@ elif opcion == "reflexion":
         "😌 Aliviado / Tranquilo", "😓 Culpable", "🥱 Apático / Cansado", "😔 Triste"
     ]
 
-    emociones = st.multiselect("¿Cómo te sentías?", emociones_opciones, key="emociones_reflexion", placeholder="Seleccioná una o varias emociones")
+    emociones = st.multiselect("¿Cómo te sentías?", emociones_opciones, key="emociones_reflexion")
     texto_reflexion = st.text_area("¿Querés dejar algo escrito?", height=150, key="texto_reflexion")
 
     puede_guardar = texto_reflexion.strip() or emociones
@@ -265,7 +275,7 @@ elif opcion == "reflexion":
         if st.button("📝 Guardar reflexión"):
             categoria_asignada = guardar_reflexion(fecha_hora_reflexion, emociones, texto_reflexion)
             st.success(f"Reflexión guardada con categoría: {categoria_asignada}")
-            st.session_state["limpiar_reflexion"] = True  # limpiar form sin recargar app
+            st.session_state["limpiar_reflexion"] = True  # Limpieza segura sin reinicio abrupto
 
     st.markdown("<div style='margin-bottom: 300px;'></div>", unsafe_allow_html=True)
 
