@@ -242,6 +242,7 @@ def obtener_reflexiones():
         })
     return pd.DataFrame(rows)
 
+# Procesar reflexiones pendientes sin categoría al iniciar la app
 def procesar_reflexiones_pendientes():
     sin_categoria = list(coleccion_reflexiones.find({"categoria_categorial": {"$exists": False}}))
     if not sin_categoria:
