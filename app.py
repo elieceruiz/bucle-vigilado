@@ -97,7 +97,7 @@ def guardar_reflexion(fecha_hora, emociones, reflexion):
 def procesar_reflexiones_pendientes():
     sin_categoria = list(coleccion_reflexiones.find({"categoria_categorial": {"$exists": False}}))
     if not sin_categoria:
-        return  # Todas clasificadas, seguimos operativos
+        return
     st.info(f"Procesando {len(sin_categoria)} reflexiones sin categoría asignada...")
     for i, doc in enumerate(sin_categoria, 1):
         texto = doc.get("reflexion", "").strip()
@@ -306,8 +306,10 @@ elif opcion == "reflexion":
         if st.button("📝 Guardar reflexión"):
             categoria_asignada = guardar_reflexion(fecha_hora_reflexion, emociones, texto_reflexion)
             st.success(f"Reflexión guardada con categoría: {categoria_asignada}")
-            st.session_state["limpiar_reflexion"] = True
-            st.experimental_rerun()
+            # Limpiar campos manualmente
+            st.session_state["texto_reflexion"] = ""
+            st.session_state["emociones_reflexion"] = []
+            st.rerun()
 
 # === MÓDULO HISTORIAL COMPLETO ===
 elif opcion == "historial":
