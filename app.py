@@ -260,6 +260,7 @@ def procesar_reflexiones_pendientes():
 
 procesar_reflexiones_pendientes()
 
+# UI
 st.title("Reinicia")
 seleccion = st.selectbox("Seleccioná qué registrar o consultar:", list(eventos.keys()))
 opcion = eventos[seleccion]
@@ -279,15 +280,24 @@ if opcion in [evento_a, evento_b]:
 
 elif opcion == "reflexion":
     st.header("🧠 Registrar reflexión")
-    # Inicializar claves para evitar error al limpiar
+
+    # Inicializar para evitar error al asignar
     if "texto_reflexion" not in st.session_state:
         st.session_state["texto_reflexion"] = ""
     if "emociones_reflexion" not in st.session_state:
         st.session_state["emociones_reflexion"] = []
+    if "limpiar_formulario" not in st.session_state:
+        st.session_state["limpiar_formulario"] = False
+
+    if st.session_state["limpiar_formulario"]:
+        st.session_state["texto_reflexion"] = ""
+        st.session_state["emociones_reflexion"] = []
+        st.session_state["limpiar_formulario"] = False
 
     ultima = coleccion_reflexiones.find_one({}, sort=[("fecha_hora", -1)])
     if ultima:
-        st.caption(f"📌 Última registrada: {ultima['fecha_hora'].astimezone(colombia).strftime('%Y-%m-%d %H:%M:%S')}")
+        fecha = ultima["fecha_hora"].astimezone(colombia)
+        st.caption(f"📌 Última registrada: {fecha.strftime('%Y-%m-%d %H:%M:%S')}")
 
     fecha_hora_reflexion = datetime.now(colombia)
     emociones_opciones = [
@@ -297,14 +307,13 @@ elif opcion == "reflexion":
 
     emociones = st.multiselect("¿Cómo te sentías?", emociones_opciones, key="emociones_reflexion", placeholder="Seleccioná una o varias emociones")
     texto_reflexion = st.text_area("¿Querés dejar algo escrito?", height=150, key="texto_reflexion")
+
     puede_guardar = texto_reflexion.strip() or emociones
     if puede_guardar:
         if st.button("📝 Guardar reflexión"):
             categoria_asignada = guardar_reflexion(fecha_hora_reflexion, emociones, texto_reflexion)
             st.success(f"Reflexión guardada con categoría: {categoria_asignada}")
-            # Limpiar
-            st.session_state["texto_reflexion"] = ""
-            st.session_state["emociones_reflexion"] = []
+            st.session_state["limpiar_formulario"] = True
             st.experimental_rerun()
 
 elif opcion == "historial":
