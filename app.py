@@ -48,7 +48,6 @@ sistema_categorial = {
     "3.4": {"categoria": "Masturbación", "subcategoria": "Representaciones culturales", "descriptor": "Creencias, tabúes y normas que afectan la aceptación social.", "observable": "Sentimientos de culpa, vergüenza, libertad; términos religiosos."},
 }
 
-# === FUNCIONES ===
 def clasificar_reflexion_openai(texto_reflexion: str) -> str:
     prompt = f"""\
 Sistema categorial para clasificar reflexiones:
@@ -81,7 +80,6 @@ Respuesta con sólo el código, por ejemplo: 1.4
     )
     return response.choices[0].message.content.strip()
 
-
 def guardar_reflexion(fecha_hora, emociones, reflexion):
     categoria_auto = clasificar_reflexion_openai(reflexion)
     doc = {
@@ -92,7 +90,6 @@ def guardar_reflexion(fecha_hora, emociones, reflexion):
     }
     coleccion_reflexiones.insert_one(doc)
     return categoria_auto
-
 
 def procesar_reflexiones_pendientes():
     sin_categoria = list(coleccion_reflexiones.find({"categoria_categorial": {"$exists": False}}))
@@ -110,11 +107,9 @@ def procesar_reflexiones_pendientes():
         except Exception as e:
             st.error(f"Error categorizando reflexión {doc['_id']}: {e}")
 
-
 def registrar_evento(nombre_evento, fecha_hora):
     coleccion_eventos.insert_one({"evento": nombre_evento, "fecha_hora": fecha_hora})
     st.session_state[nombre_evento] = fecha_hora
-
 
 def registrar_hito(evento, hito, desde, fecha):
     if not coleccion_hitos.find_one({"evento": evento, "hito": hito, "desde": desde}):
@@ -124,7 +119,6 @@ def registrar_hito(evento, hito, desde, fecha):
             "desde": desde,
             "fecha_registro": fecha
         })
-
 
 def registrar_log_visual(evento, meta, desde, minutos, porcentaje):
     if not coleccion_visual.find_one({"evento": evento, "meta_activada": meta, "desde": desde}):
@@ -136,7 +130,6 @@ def registrar_log_visual(evento, meta, desde, minutos, porcentaje):
             "progreso_minutos": minutos,
             "porcentaje_meta": porcentaje
         })
-
 
 def mostrar_racha(nombre_evento, emoji):
     clave_estado = f"mostrar_racha_{nombre_evento}"
@@ -248,7 +241,6 @@ def obtener_reflexiones():
         })
     return pd.DataFrame(rows)
 
-
 # Procesar reflexiones pendientes sin categoría al iniciar la app
 def procesar_reflexiones_pendientes():
     sin_categoria = list(coleccion_reflexiones.find({"categoria_categorial": {"$exists": False}}))
@@ -266,20 +258,16 @@ def procesar_reflexiones_pendientes():
         except Exception as e:
             st.error(f"Error categorizando reflexión {doc['_id']}: {e}")
 
-
 procesar_reflexiones_pendientes()
 
-# === UI PRINCIPAL ===
 st.title("Reinicia")
 seleccion = st.selectbox("Seleccioná qué registrar o consultar:", list(eventos.keys()))
 opcion = eventos[seleccion]
 
-# 🧹 Limpieza de estado al cambiar vista
 if opcion != "reflexion":
     for key in ["texto_reflexion", "emociones_reflexion", "limpiar_reflexion", "📝 Guardar reflexión"]:
         st.session_state.pop(key, None)
 
-# === MÓDULO EVENTO ===
 if opcion in [evento_a, evento_b]:
     st.header(f"📍 Registro de evento: {seleccion}")
     fecha_hora_evento = datetime.now(colombia)
@@ -288,7 +276,6 @@ if opcion in [evento_a, evento_b]:
         st.success(f"Evento '{seleccion}' registrado a las {fecha_hora_evento.strftime('%H:%M:%S')}")
     mostrar_racha(opcion, seleccion.split()[0])
 
-# === MÓDULO REFLEXIÓN ===
 elif opcion == "reflexion":
     st.header("🧠 Registrar reflexión")
     ultima = coleccion_reflexiones.find_one({}, sort=[("fecha_hora", -1)])
@@ -306,12 +293,10 @@ elif opcion == "reflexion":
         if st.button("📝 Guardar reflexión"):
             categoria_asignada = guardar_reflexion(fecha_hora_reflexion, emociones, texto_reflexion)
             st.success(f"Reflexión guardada con categoría: {categoria_asignada}")
-            # Limpiar campos manualmente
             st.session_state["texto_reflexion"] = ""
             st.session_state["emociones_reflexion"] = []
             st.rerun()
 
-# === MÓDULO HISTORIAL COMPLETO ===
 elif opcion == "historial":
     st.header("📑 Historial completo")
     tabs = st.tabs(["🧠 Reflexiones", "✊🏽", "💸"])
