@@ -19,7 +19,7 @@ coleccion_reflexiones = db["reflexiones"]
 coleccion_hitos = db["hitos"]
 coleccion_visual = db["log_visual"]
 
-# === OPENAI CLIENTE ===
+# === CLIENTE OPENAI ===
 openai_client = OpenAI(api_key=st.secrets["openai_api_key"])
 
 # === DEFINICIONES DE EVENTO ===
@@ -48,33 +48,28 @@ sistema_categorial = {
     "3.4": {"categoria": "Masturbación", "subcategoria": "Representaciones culturales", "descriptor": "Creencias, tabúes y normas que afectan la aceptación social.", "observable": "Sentimientos de culpa, vergüenza, libertad; términos religiosos."},
 }
 
-# === ESTADO INICIAL ===
-for key in [evento_a, evento_b]:
-    if key not in st.session_state:
-        evento = coleccion_eventos.find_one({"evento": key}, sort=[("fecha_hora", -1)])
-        if evento:
-            st.session_state[key] = evento["fecha_hora"].astimezone(colombia)
-
-def registrar_evento(nombre_evento, fecha_hora):
-    coleccion_eventos.insert_one({"evento": nombre_evento, "fecha_hora": fecha_hora})
-    st.session_state[nombre_evento] = fecha_hora
-
+# === FUNCIONES ===
 def clasificar_reflexion_openai(texto_reflexion: str) -> str:
     prompt = f"""\
 Sistema categorial para clasificar reflexiones:
+
 1.1 Organización del tiempo
 1.2 Relaciones sociales
 1.3 Contextos de intimidad
 1.4 Factores emocionales
+
 2.1 Motivaciones
 2.2 Prácticas asociadas
 2.3 Representaciones
 2.4 Efectos en la trayectoria íntima
+
 3.1 Prácticas de autocuidado
 3.2 Placer y exploración del cuerpo
 3.3 Relación con la intimidad
 3.4 Representaciones culturales
+
 Por favor indica el código de la categoría/subcategoría que mejor describe esta reflexión:
+
 Reflexión: \"\"\"{texto_reflexion}\"\"\"
 Respuesta con sólo el código, por ejemplo: 1.4
 """
@@ -86,60 +81,62 @@ Respuesta con sólo el código, por ejemplo: 1.4
     )
     return response.choices[0].message.content.strip()
 
+
 def guardar_reflexion(fecha_hora, emociones, reflexion):
     categoria_auto = clasificar_reflexion_openai(reflexion)
     doc = {
         "fecha_hora": fecha_hora,
         "emociones": [{"emoji": e.split()[0], "nombre": " ".join(e.split()[1:])} for e in emociones],
         "reflexion": reflexion.strip(),
-        "categoria_categorial": categoria_auto
+        "categoria_categorial": categoria_auto if categoria_auto else ""
     }
     coleccion_reflexiones.insert_one(doc)
     return categoria_auto
 
-def obtener_registros(nombre_evento):
-    eventos = list(coleccion_eventos.find({"evento": nombre_evento}).sort("fecha_hora", -1))
-    filas = []
-    total = len(eventos)
-    for i, e in enumerate(eventos):
-        fecha = e["fecha_hora"].astimezone(colombia)
-        anterior = eventos[i + 1]["fecha_hora"].astimezone(colombia) if i + 1 < len(eventos) else None
-        diferencia = ""
-        if anterior:
-            detalle = relativedelta(fecha, anterior)
-            diferencia = f"{detalle.years}a {detalle.months}m {detalle.days}d {detalle.hours}h {detalle.minutes}m"
-        filas.append({
-            "N°": total - i,
-            "Fecha": fecha.strftime("%Y-%m-%d"),
-            "Hora": fecha.strftime("%H:%M"),
-            "Duración sin caer": diferencia
-        })
-    return pd.DataFrame(filas)
 
-def obtener_reflexiones():
-    docs = list(coleccion_reflexiones.find({}).sort("fecha_hora", -1))
-    rows = []
-    for d in docs:
-        fecha = d["fecha_hora"].astimezone(colombia)
-        emociones = ", ".join([e.get("nombre", "") for e in d.get("emociones", [])])
-        cat_key = d.get("categoria_categorial", "")
-        info = sistema_categorial.get(cat_key, {
-            "categoria": "Sin categoría",
-            "subcategoria": "Sin subcategoría",
-            "descriptor": "No asignado",
-            "observable": "No asignado",
+def procesar_reflexiones_pendientes():
+    sin_categoria = list(coleccion_reflexiones.find({"categoria_categorial": {"$exists": False}}))
+    if not sin_categoria:
+        return  # Todas clasificadas, seguimos operativos
+    st.info(f"Procesando {len(sin_categoria)} reflexiones sin categoría asignada...")
+    for i, doc in enumerate(sin_categoria, 1):
+        texto = doc.get("reflexion", "").strip()
+        if not texto:
+            continue
+        try:
+            cat = clasificar_reflexion_openai(texto)
+            coleccion_reflexiones.update_one({"_id": doc["_id"]}, {"$set": {"categoria_categorial": cat}})
+            st.write(f"[{i}/{len(sin_categoria)}] Reflexión {doc['_id']} categorizada como {cat}")
+        except Exception as e:
+            st.error(f"Error categorizando reflexión {doc['_id']}: {e}")
+
+
+def registrar_evento(nombre_evento, fecha_hora):
+    coleccion_eventos.insert_one({"evento": nombre_evento, "fecha_hora": fecha_hora})
+    st.session_state[nombre_evento] = fecha_hora
+
+
+def registrar_hito(evento, hito, desde, fecha):
+    if not coleccion_hitos.find_one({"evento": evento, "hito": hito, "desde": desde}):
+        coleccion_hitos.insert_one({
+            "evento": evento,
+            "hito": hito,
+            "desde": desde,
+            "fecha_registro": fecha
         })
-        rows.append({
-            "Fecha": fecha.strftime("%Y-%m-%d"),
-            "Hora": fecha.strftime("%H:%M"),
-            "Emociones": emociones,
-            "Categoría": info["categoria"],
-            "Subcategoría": info["subcategoria"],
-            "Descriptor": info["descriptor"],
-            "Observable": info["observable"],
-            "Reflexión": d.get("reflexion", ""),
+
+
+def registrar_log_visual(evento, meta, desde, minutos, porcentaje):
+    if not coleccion_visual.find_one({"evento": evento, "meta_activada": meta, "desde": desde}):
+        coleccion_visual.insert_one({
+            "evento": evento,
+            "meta_activada": meta,
+            "desde": desde,
+            "fecha_registro": datetime.now(colombia),
+            "progreso_minutos": minutos,
+            "porcentaje_meta": porcentaje
         })
-    return pd.DataFrame(rows)
+
 
 def mostrar_racha(nombre_evento, emoji):
     clave_estado = f"mostrar_racha_{nombre_evento}"
@@ -204,6 +201,73 @@ def mostrar_racha(nombre_evento, emoji):
     else:
         st.metric("Duración", "0 min")
         st.caption("0a 0m 0d 0h 0m 0s")
+
+
+def obtener_registros(nombre_evento):
+    eventos = list(coleccion_eventos.find({"evento": nombre_evento}).sort("fecha_hora", -1))
+    filas = []
+    total = len(eventos)
+    for i, e in enumerate(eventos):
+        fecha = e["fecha_hora"].astimezone(colombia)
+        anterior = eventos[i + 1]["fecha_hora"].astimezone(colombia) if i + 1 < len(eventos) else None
+        diferencia = ""
+        if anterior:
+            detalle = relativedelta(fecha, anterior)
+            diferencia = f"{detalle.years}a {detalle.months}m {detalle.days}d {detalle.hours}h {detalle.minutes}m"
+        filas.append({
+            "N°": total - i,
+            "Fecha": fecha.strftime("%Y-%m-%d"),
+            "Hora": fecha.strftime("%H:%M"),
+            "Duración sin caer": diferencia
+        })
+    return pd.DataFrame(filas)
+
+
+def obtener_reflexiones():
+    docs = list(coleccion_reflexiones.find({}).sort("fecha_hora", -1))
+    rows = []
+    for d in docs:
+        fecha = d["fecha_hora"].astimezone(colombia)
+        emociones = ", ".join([e.get("nombre", "") for e in d.get("emociones", [])])
+        cat_key = d.get("categoria_categorial", "")
+        info = sistema_categorial.get(cat_key, {
+            "categoria": "Sin categoría",
+            "subcategoria": "Sin subcategoría",
+            "descriptor": "No asignado",
+            "observable": "No asignado",
+        })
+        rows.append({
+            "Fecha": fecha.strftime("%Y-%m-%d"),
+            "Hora": fecha.strftime("%H:%M"),
+            "Emociones": emociones,
+            "Categoría": info["categoria"],
+            "Subcategoría": info["subcategoria"],
+            "Descriptor": info["descriptor"],
+            "Observable": info["observable"],
+            "Reflexión": d.get("reflexion", ""),
+        })
+    return pd.DataFrame(rows)
+
+
+# Procesar reflexiones pendientes sin categoría al iniciar la app
+def procesar_reflexiones_pendientes():
+    sin_categoria = list(coleccion_reflexiones.find({"categoria_categorial": {"$exists": False}}))
+    if not sin_categoria:
+        return
+    st.info(f"Procesando {len(sin_categoria)} reflexiones sin categoría asignada...")
+    for i, doc in enumerate(sin_categoria, 1):
+        texto = doc.get("reflexion", "").strip()
+        if not texto:
+            continue
+        try:
+            cat = clasificar_reflexion_openai(texto)
+            coleccion_reflexiones.update_one({"_id": doc["_id"]}, {"$set": {"categoria_categorial": cat}})
+            st.write(f"[{i}/{len(sin_categoria)}] Reflexión {doc['_id']} categorizada como {cat}")
+        except Exception as e:
+            st.error(f"Error categorizando reflexión {doc['_id']}: {e}")
+
+
+procesar_reflexiones_pendientes()
 
 # === UI PRINCIPAL ===
 st.title("Reinicia")
