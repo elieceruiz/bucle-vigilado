@@ -261,13 +261,13 @@ def procesar_reflexiones_pendientes():
 procesar_reflexiones_pendientes()
 
 st.title("Reinicia")
-
 seleccion = st.selectbox("Seleccioná qué registrar o consultar:", list(eventos.keys()))
 opcion = eventos[seleccion]
 
 if opcion != "reflexion":
     for key in ["texto_reflexion", "emociones_reflexion", "limpiar_reflexion", "📝 Guardar reflexión"]:
-        st.session_state.pop(key, None)
+        if key in st.session_state:
+            del st.session_state[key]
 
 if opcion in [evento_a, evento_b]:
     st.header(f"📍 Registro de evento: {seleccion}")
@@ -279,7 +279,7 @@ if opcion in [evento_a, evento_b]:
 
 elif opcion == "reflexion":
     st.header("🧠 Registrar reflexión")
-    # Inicializar claves para evitar errores de asignación
+    # Inicializar claves para evitar error al limpiar
     if "texto_reflexion" not in st.session_state:
         st.session_state["texto_reflexion"] = ""
     if "emociones_reflexion" not in st.session_state:
@@ -302,9 +302,10 @@ elif opcion == "reflexion":
         if st.button("📝 Guardar reflexión"):
             categoria_asignada = guardar_reflexion(fecha_hora_reflexion, emociones, texto_reflexion)
             st.success(f"Reflexión guardada con categoría: {categoria_asignada}")
+            # Limpiar
             st.session_state["texto_reflexion"] = ""
             st.session_state["emociones_reflexion"] = []
-            st.rerun()
+            st.experimental_rerun()
 
 elif opcion == "historial":
     st.header("📑 Historial completo")
