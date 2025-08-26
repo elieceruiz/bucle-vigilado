@@ -19,7 +19,7 @@ coleccion_reflexiones = db["reflexiones"]
 coleccion_hitos = db["hitos"]
 coleccion_visual = db["log_visual"]
 
-# === CLIENTE OPENAI ===
+# === OPENAI CLIENTE ===
 openai_client = OpenAI(api_key=st.secrets["openai_api_key"])
 
 # === DEFINICIONES DE EVENTO ===
@@ -55,19 +55,47 @@ for key in [evento_a, evento_b]:
         if evento:
             st.session_state[key] = evento["fecha_hora"].astimezone(colombia)
 
-# === FUNCIONES BASE ===
 def registrar_evento(nombre_evento, fecha_hora):
     coleccion_eventos.insert_one({"evento": nombre_evento, "fecha_hora": fecha_hora})
     st.session_state[nombre_evento] = fecha_hora
 
-def guardar_reflexion(fecha_hora, emociones, reflexion, categoria_categorial=None):
+def clasificar_reflexion_openai(texto_reflexion: str) -> str:
+    prompt = f"""\
+Sistema categorial para clasificar reflexiones:
+1.1 Organización del tiempo
+1.2 Relaciones sociales
+1.3 Contextos de intimidad
+1.4 Factores emocionales
+2.1 Motivaciones
+2.2 Prácticas asociadas
+2.3 Representaciones
+2.4 Efectos en la trayectoria íntima
+3.1 Prácticas de autocuidado
+3.2 Placer y exploración del cuerpo
+3.3 Relación con la intimidad
+3.4 Representaciones culturales
+Por favor indica el código de la categoría/subcategoría que mejor describe esta reflexión:
+Reflexión: \"\"\"{texto_reflexion}\"\"\"
+Respuesta con sólo el código, por ejemplo: 1.4
+"""
+    response = openai_client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0,
+        max_tokens=5,
+    )
+    return response.choices[0].message.content.strip()
+
+def guardar_reflexion(fecha_hora, emociones, reflexion):
+    categoria_auto = clasificar_reflexion_openai(reflexion)
     doc = {
         "fecha_hora": fecha_hora,
         "emociones": [{"emoji": e.split()[0], "nombre": " ".join(e.split()[1:])} for e in emociones],
         "reflexion": reflexion.strip(),
-        "categoria_categorial": categoria_categorial if categoria_categorial else ""
+        "categoria_categorial": categoria_auto
     }
     coleccion_reflexiones.insert_one(doc)
+    return categoria_auto
 
 def obtener_registros(nombre_evento):
     eventos = list(coleccion_eventos.find({"evento": nombre_evento}).sort("fecha_hora", -1))
@@ -93,7 +121,7 @@ def obtener_reflexiones():
     rows = []
     for d in docs:
         fecha = d["fecha_hora"].astimezone(colombia)
-        emociones = ", ".join([e["nombre"] for e in d.get("emociones", [])])
+        emociones = ", ".join([e.get("nombre", "") for e in d.get("emociones", [])])
         cat_key = d.get("categoria_categorial", "")
         info = sistema_categorial.get(cat_key, {
             "categoria": "Sin categoría",
@@ -113,55 +141,6 @@ def obtener_reflexiones():
         })
     return pd.DataFrame(rows)
 
-# === FUNCION OPENAI ===
-def clasificar_reflexion_openai(texto_reflexion: str) -> str:
-    prompt = f"""\
-Sistema categorial para clasificar reflexiones:
-
-1.1 Organización del tiempo
-1.2 Relaciones sociales
-1.3 Contextos de intimidad
-1.4 Factores emocionales
-
-2.1 Motivaciones
-2.2 Prácticas asociadas
-2.3 Representaciones
-2.4 Efectos en la trayectoria íntima
-
-3.1 Prácticas de autocuidado
-3.2 Placer y exploración del cuerpo
-3.3 Relación con la intimidad
-3.4 Representaciones culturales
-
-Por favor indica el código de la categoría/subcategoría que mejor describe esta reflexión:
-
-Reflexión: \"\"\"{texto_reflexion}\"\"\"
-Respuesta con sólo el código, por ejemplo: 1.4\
-"""
-    response = openai_client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[{"role": "user", "content": prompt}],
-        temperature=0,
-        max_tokens=5,
-    )
-    return response.choices[0].message.content.strip()
-
-def procesar_reflexiones_sin_categoria():
-    reflexiones = list(coleccion_reflexiones.find({"categoria_categorial": {"$exists": False}}))
-    total = len(reflexiones)
-    st.info(f"Procesando {total} reflexiones sin categoría asignada.")
-    for i, doc in enumerate(reflexiones, 1):
-        texto = doc.get("reflexion", "")
-        if not texto.strip():
-            continue
-        try:
-            categoria = clasificar_reflexion_openai(texto)
-            coleccion_reflexiones.update_one({"_id": doc["_id"]}, {"$set": {"categoria_categorial": categoria}})
-            st.write(f"[{i}/{total}] Reflexión categorizada como {categoria}")
-        except Exception as e:
-            st.error(f"Error categorizando reflexión {doc['_id']}: {e}")
-
-# === Mostrar/ocultar racha ===
 def mostrar_racha(nombre_evento, emoji):
     clave_estado = f"mostrar_racha_{nombre_evento}"
     if clave_estado not in st.session_state:
@@ -258,16 +237,11 @@ elif opcion == "reflexion":
     ]
     emociones = st.multiselect("¿Cómo te sentías?", emociones_opciones, key="emociones_reflexion", placeholder="Seleccioná una o varias emociones")
     texto_reflexion = st.text_area("¿Querés dejar algo escrito?", height=150, key="texto_reflexion")
-    categoria_categorial = st.selectbox(
-        "Seleccioná la categoría del sistema categorial que mejor describe esta reflexión:",
-        [""] + list(sistema_categorial.keys()),
-        format_func=lambda x: x if x == "" else f"{x} - {sistema_categorial[x]['categoria']} / {sistema_categorial[x]['subcategoria']}"
-    )
     puede_guardar = texto_reflexion.strip() or emociones
     if puede_guardar:
         if st.button("📝 Guardar reflexión"):
-            guardar_reflexion(fecha_hora_reflexion, emociones, texto_reflexion, categoria_categorial)
-            st.toast("🧠 Reflexión guardada.", icon="💾")
+            categoria_asignada = guardar_reflexion(fecha_hora_reflexion, emociones, texto_reflexion)
+            st.success(f"Reflexión guardada con categoría: {categoria_asignada}")
             st.session_state["limpiar_reflexion"] = True
             st.experimental_rerun()
 
