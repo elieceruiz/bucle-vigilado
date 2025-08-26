@@ -1,6 +1,7 @@
 streamlit
 pymongo
 pytz
+pandas
 python-dateutil
 streamlit-autorefresh
-pandas
+openai
