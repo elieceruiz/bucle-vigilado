@@ -5,6 +5,7 @@ import pytz
 import pandas as pd
 from dateutil.relativedelta import relativedelta
 from streamlit_autorefresh import st_autorefresh
+from openai import OpenAI
 
 # === CONFIGURACIÓN ===
 st.set_page_config(page_title="Reinicia", layout="centered")
@@ -17,6 +18,9 @@ coleccion_eventos = db["eventos"]
 coleccion_reflexiones = db["reflexiones"]
 coleccion_hitos = db["hitos"]
 coleccion_visual = db["log_visual"]
+
+# === CLIENTE OPENAI ===
+openai_client = OpenAI(api_key=st.secrets["openai_api_key"])
 
 # === DEFINICIONES DE EVENTO ===
 evento_a = "La Iniciativa Aquella"
@@ -35,28 +39,54 @@ for key in [evento_a, evento_b]:
         if evento:
             st.session_state[key] = evento["fecha_hora"].astimezone(colombia)
 
-# === UI PRINCIPAL ===
-st.title("Reinicia")
-seleccion = st.selectbox("Seleccioná qué registrar o consultar:", list(eventos.keys()))
-opcion = eventos[seleccion]
-
-# 🧹 Limpieza de estado al cambiar vista
-if opcion != "reflexion":
-    for key in ["texto_reflexion", "emociones_reflexion", "limpiar_reflexion", "📝 Guardar reflexión"]:
-        st.session_state.pop(key, None)
-
 # === FUNCIONES ===
-def registrar_evento(nombre_evento, fecha_hora):
-    coleccion_eventos.insert_one({"evento": nombre_evento, "fecha_hora": fecha_hora})
-    st.session_state[nombre_evento] = fecha_hora
+
+def clasificar_reflexion_openai(texto_reflexion: str) -> str:
+    prompt = f"""\
+Sistema categorial para clasificar reflexiones:
+
+1.1 Organización del tiempo
+1.2 Relaciones sociales
+1.3 Contextos de intimidad
+1.4 Factores emocionales
+
+2.1 Motivaciones
+2.2 Prácticas asociadas
+2.3 Representaciones
+2.4 Efectos en la trayectoria íntima
+
+3.1 Prácticas de autocuidado
+3.2 Placer y exploración del cuerpo
+3.3 Relación con la intimidad
+3.4 Representaciones culturales
+
+Por favor indica el código de la categoría/subcategoría que mejor describe esta reflexión:
+
+Reflexión: \"\"\"{texto_reflexion}\"\"\"
+Respuesta sólo con el código, ejemplo: 1.4
+"""
+    response = openai_client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0,
+        max_tokens=5
+    )
+    return response.choices[0].message.content.strip()
 
 def guardar_reflexion(fecha_hora, emociones, reflexion):
+    categoria_auto = clasificar_reflexion_openai(reflexion)
     doc = {
         "fecha_hora": fecha_hora,
         "emociones": [{"emoji": e.split()[0], "nombre": " ".join(e.split()[1:])} for e in emociones],
-        "reflexion": reflexion.strip()
+        "reflexion": reflexion.strip(),
+        "categoria_categorial": categoria_auto if categoria_auto else ""
     }
     coleccion_reflexiones.insert_one(doc)
+    return categoria_auto
+
+def registrar_evento(nombre_evento, fecha_hora):
+    coleccion_eventos.insert_one({"evento": nombre_evento, "fecha_hora": fecha_hora})
+    st.session_state[nombre_evento] = fecha_hora
 
 def registrar_hito(evento, hito, desde, fecha):
     if not coleccion_hitos.find_one({"evento": evento, "hito": hito, "desde": desde}):
@@ -203,7 +233,14 @@ if opcion in [evento_a, evento_b]:
 elif opcion == "reflexion":
     st.header("🧠 Registrar reflexión")
 
-    if st.session_state.get("limpiar_reflexion"):
+    if "texto_reflexion" not in st.session_state:
+        st.session_state["texto_reflexion"] = ""
+    if "emociones_reflexion" not in st.session_state:
+        st.session_state["emociones_reflexion"] = []
+    if "limpiar_reflexion" not in st.session_state:
+        st.session_state["limpiar_reflexion"] = False
+
+    if st.session_state["limpiar_reflexion"]:
         st.session_state["texto_reflexion"] = ""
         st.session_state["emociones_reflexion"] = []
         st.session_state["limpiar_reflexion"] = False
@@ -226,27 +263,9 @@ elif opcion == "reflexion":
     puede_guardar = texto_reflexion.strip() or emociones
     if puede_guardar:
         if st.button("📝 Guardar reflexión"):
-            guardar_reflexion(fecha_hora_reflexion, emociones, texto_reflexion)
-
-            if ultima:
-                ahora = datetime.now(colombia)
-                delta = relativedelta(ahora, ultima["fecha_hora"].astimezone(colombia))
-                tiempo = f"{delta.days}d {delta.hours}h {delta.minutes}m"
-                st.toast(f"🧠 Reflexión guardada (han pasado {tiempo} desde la última)", icon="💾")
-            else:
-                st.toast("🧠 Primera reflexión guardada. ¡Buen comienzo!", icon="🌱")
-
-            st.markdown("""
-                <script>
-                    if (window.navigator && window.navigator.vibrate) {
-                        window.navigator.vibrate(100);
-                    }
-                    window.scrollTo({top: 0, behavior: 'smooth'});
-                </script>
-            """, unsafe_allow_html=True)
-
-            st.session_state["limpiar_reflexion"] = True
-            st.rerun()
+            categoria_asignada = guardar_reflexion(fecha_hora_reflexion, emociones, texto_reflexion)
+            st.success(f"Reflexión guardada con categoría: {categoria_asignada}")
+            st.session_state["limpiar_reflexion"] = True  # limpiar form sin recargar app
 
     st.markdown("<div style='margin-bottom: 300px;'></div>", unsafe_allow_html=True)
 
