@@ -48,6 +48,7 @@ sistema_categorial = {
     "3.4": {"categoria": "Masturbación", "subcategoria": "Representaciones culturales", "descriptor": "Creencias, tabúes y normas que afectan la aceptación social.", "observable": "Sentimientos de culpa, vergüenza, libertad; términos religiosos."},
 }
 
+# === FUNCIONES DE APOYO ===
 def clasificar_reflexion_openai(texto_reflexion: str) -> str:
     prompt = f"""\
 Sistema categorial para clasificar reflexiones:
@@ -195,7 +196,6 @@ def mostrar_racha(nombre_evento, emoji):
         st.metric("Duración", "0 min")
         st.caption("0a 0m 0d 0h 0m 0s")
 
-
 def obtener_registros(nombre_evento):
     eventos = list(coleccion_eventos.find({"evento": nombre_evento}).sort("fecha_hora", -1))
     filas = []
@@ -214,7 +214,6 @@ def obtener_registros(nombre_evento):
             "Duración sin caer": diferencia
         })
     return pd.DataFrame(filas)
-
 
 def obtener_reflexiones():
     docs = list(coleccion_reflexiones.find({}).sort("fecha_hora", -1))
@@ -278,14 +277,22 @@ if opcion in [evento_a, evento_b]:
 
 elif opcion == "reflexion":
     st.header("🧠 Registrar reflexión")
+    # Inicializar para evitar errores de sesión
+    if "texto_reflexion" not in st.session_state:
+        st.session_state["texto_reflexion"] = ""
+    if "emociones_reflexion" not in st.session_state:
+        st.session_state["emociones_reflexion"] = []
+
     ultima = coleccion_reflexiones.find_one({}, sort=[("fecha_hora", -1)])
     if ultima:
         st.caption(f"📌 Última registrada: {ultima['fecha_hora'].astimezone(colombia).strftime('%Y-%m-%d %H:%M:%S')}")
+
     fecha_hora_reflexion = datetime.now(colombia)
     emociones_opciones = [
         "😰 Ansioso", "😡 Irritado / Rabia contenida", "💪 Firme / Decidido",
         "😌 Aliviado / Tranquilo", "😓 Culpable", "🥱 Apático / Cansado", "😔 Triste"
     ]
+
     emociones = st.multiselect("¿Cómo te sentías?", emociones_opciones, key="emociones_reflexion", placeholder="Seleccioná una o varias emociones")
     texto_reflexion = st.text_area("¿Querés dejar algo escrito?", height=150, key="texto_reflexion")
     puede_guardar = texto_reflexion.strip() or emociones
@@ -303,12 +310,23 @@ elif opcion == "historial":
     with tabs[0]:
         st.subheader("📍 Historial de reflexiones")
         df_r = obtener_reflexiones()
+        
+        emojis_set = {"😰", "😡", "💪", "😌", "😓", "🥱", "😔"}  # Ajustar según tus emojis
+
         for i, row in df_r.iterrows():
-            with st.expander(f"{row['Fecha']} {row['Hora']} - {row['Categoría']} / {row['Subcategoría']}"):
+            # Extraer emojis para título
+            emociones_emoji = "".join(ch for ch in row['Emociones'] if ch in emojis_set)
+            exp_label = f"{row['Fecha']} {emociones_emoji}"
+
+            with st.expander(exp_label):
+                st.markdown(f"*Emociones:* {row['Emociones']}")
+                st.write(row['Reflexión'])
+                st.markdown("---")
+                st.markdown(f"**Categoría:** {row['Categoría']}")
+                st.markdown(f"**Subcategoría:** {row['Subcategoría']}")
                 st.markdown(f"**Descriptor:** {row['Descriptor']}")
                 st.markdown(f"**Observable:** {row['Observable']}")
-                st.markdown(f"**Emociones:** {row['Emociones']}")
-                st.markdown(f"**Reflexión:** {row['Reflexión']}")
+
     def mostrar_tabla_eventos(nombre_evento):
         st.subheader(f"📍 Registros de {nombre_evento}")
         mostrar = st.checkbox("Ver/Ocultar registros", value=False, key=f"mostrar_{nombre_evento}")
@@ -322,6 +340,7 @@ elif opcion == "historial":
             df_oculto["Duración sin caer"] = "••a ••m ••d ••h ••m"
             st.dataframe(df_oculto, use_container_width=True, hide_index=True)
             st.caption("🔒 Registros ocultos. Activá el check para visualizar.")
+
     with tabs[1]:
         mostrar_tabla_eventos(evento_a)
     with tabs[2]:
