@@ -41,14 +41,13 @@ sistema_categorial = {
     "2.1": {"categoria": "Consumo de sexo pago", "subcategoria": "Motivaciones", "descriptor": "Razones personales, sociales y económicas para consumir servicios sexuales pagados.", "observable": "Búsqueda de placer, compañía, evasión, curiosidad, necesidad de afecto."},
     "2.2": {"categoria": "Consumo de sexo pago", "subcategoria": "Prácticas asociadas", "descriptor": "Conductas, rituales y formas de interacción durante el consumo de sexo pago.", "observable": "Formas de acceso, frecuencia, monto pagado, modalidades y lugares."},
     "2.3": {"categoria": "Consumo de sexo pago", "subcategoria": "Representaciones", "descriptor": "Imágenes, discursos y estigmas sobre el sexo pago.", "observable": "Términos como tabú, normal, peligroso; narrativas de aceptación o estigma."},
-    "2.4": {"categoria": "Consumo de sexo pago", "subcategoria": "Efectos en la trayectoria íntima", "descriptor": "Influencia en la evolución de la vida sexual y afectiva.", "observable": "Relatos de aprendizaje, arrepentimiento, gratificación."},
+    "2.4": {"categoria": "Consumo de sexo pago", "subcategoria": "Efectos en la trayectoria íntima", "descriptor": "Influencias en la evolución de la vida sexual y afectiva.", "observable": "Relatos de aprendizaje, arrepentimiento, gratificación."},
     "3.1": {"categoria": "Masturbación", "subcategoria": "Prácticas de autocuidado", "descriptor": "Uso de la masturbación como cuidado personal y bienestar emocional.", "observable": "Relatos sobre relajación, control del estrés, conciliación del sueño."},
     "3.2": {"categoria": "Masturbación", "subcategoria": "Placer y exploración del cuerpo", "descriptor": "Búsqueda de placer a través de la autoexploración corporal.", "observable": "Fantasías, técnicas usadas, experimentación, referencias a placer físico."},
     "3.3": {"categoria": "Masturbación", "subcategoria": "Relación con la intimidad", "descriptor": "Vínculo entre masturbación, privacidad y expresión del deseo.", "observable": "Rituales íntimos, momentos en soledad, ocultamiento social."},
     "3.4": {"categoria": "Masturbación", "subcategoria": "Representaciones culturales", "descriptor": "Creencias, tabúes y normas que afectan la aceptación social.", "observable": "Sentimientos de culpa, vergüenza, libertad; términos religiosos."},
 }
 
-# === FUNCIONES DE APOYO ===
 def clasificar_reflexion_openai(texto_reflexion: str) -> str:
     prompt = f"""\
 Sistema categorial para clasificar reflexiones:
@@ -262,6 +261,7 @@ def procesar_reflexiones_pendientes():
 procesar_reflexiones_pendientes()
 
 st.title("Reinicia")
+
 seleccion = st.selectbox("Seleccioná qué registrar o consultar:", list(eventos.keys()))
 opcion = eventos[seleccion]
 
@@ -279,6 +279,7 @@ if opcion in [evento_a, evento_b]:
 
 elif opcion == "reflexion":
     st.header("🧠 Registrar reflexión")
+    # Inicializar claves para evitar errores de asignación
     if "texto_reflexion" not in st.session_state:
         st.session_state["texto_reflexion"] = ""
     if "emociones_reflexion" not in st.session_state:
