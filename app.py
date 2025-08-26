@@ -159,6 +159,7 @@ def mostrar_racha(nombre_evento, emoji):
                 if delta > meta_21:
                     st.success("🏗️ 21 días: ya creaste una estructura sólida.")
                     registrar_hito(nombre_evento, "21 días", fecha_inicio, ahora)
+
                 if delta < umbral:
                     meta_actual = umbral
                     label_meta = "zona crítica (3 días)"
@@ -174,9 +175,12 @@ def mostrar_racha(nombre_evento, emoji):
                 else:
                     meta_actual = delta
                     label_meta = "¡Nuevo récord!"
+
                 progreso_visual = min(delta.total_seconds() / meta_actual.total_seconds(), 1.0)
                 porcentaje_record = (delta.total_seconds() / record.total_seconds()) * 100
+
                 registrar_log_visual(nombre_evento, label_meta, fecha_inicio, minutos, round(progreso_visual * 100, 1))
+
                 st.markdown(f"🏅 **Récord personal:** `{record_str}`")
                 st.markdown(f"📊 **Progreso hacia {label_meta}:** `{progreso_visual*100:.1f}%`")
                 st.progress(progreso_visual)
@@ -234,7 +238,7 @@ def obtener_reflexiones():
         })
     return pd.DataFrame(rows)
 
-# Procesar reflexiones pendientes sin categoría (opcional - no obligatorio fase 1)
+# Procesar reflexiones pendientes sin categoría (opcional - puede activar si quieres)
 def procesar_reflexiones_pendientes():
     sin_categoria = list(coleccion_reflexiones.find({"categoria_categorial": {"$exists": False}}))
     if not sin_categoria:
@@ -305,7 +309,7 @@ elif opcion == "reflexion":
             categoria_asignada = guardar_reflexion(fecha_hora_reflexion, emociones, texto_reflexion)
             st.success(f"Reflexión guardada con categoría: {categoria_asignada}")
             st.session_state["limpiar_reflexion"] = True
-            st.rerun()
+            # Evitar st.rerun() o st.experimental_rerun()
 
 elif opcion == "historial":
     st.header("📑 Historial completo")
