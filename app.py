@@ -72,7 +72,7 @@ sistema_categorial = {
             "observable": "Expresiones de libertad, vergüenza, culpa, normalización; uso de términos religiosos o morales."},
 }
 
-# Inicializar eventos últimos en session_state
+# Inicializar últimos eventos en session_state
 for key in [evento_a, evento_b]:
     if key not in st.session_state:
         evento = coleccion_eventos.find_one({"evento": key}, sort=[("fecha_hora", -1)])
@@ -151,8 +151,11 @@ def mostrar_racha(nombre_evento, emoji):
                 registros = list(coleccion_eventos.find({"evento": nombre_evento}).sort("fecha_hora", -1))
                 record = max([(registros[i - 1]["fecha_hora"] - registros[i]["fecha_hora"])
                               for i in range(1, len(registros))], default=delta)
-                record_rd = relativedelta(record)
-                record_str = f"{record_rd.days} días, {record_rd.hours:02d}:{record_rd.minutes:02d}:{record_rd.seconds:02d}"
+                total_dias = record.days
+                horas = record.seconds // 3600
+                minutos_rec = (record.seconds % 3600) // 60
+                segundos = record.seconds % 60
+                record_str = f"{total_dias} días, {horas:02d}:{minutos_rec:02d}:{segundos:02d}"
                 umbral = timedelta(days=3)
                 meta_5 = timedelta(days=5)
                 meta_21 = timedelta(days=21)
@@ -190,7 +193,7 @@ def mostrar_racha(nombre_evento, emoji):
         st.metric("Duración", "0 min")
         st.caption("0a 0m 0d 0h 0m 0s")
 
-# Obtener registros para tabla
+# Obtener registros eventuales para tabla
 def obtener_registros(nombre_evento):
     eventos = list(coleccion_eventos.find({"evento": nombre_evento}).sort("fecha_hora", -1))
     filas = []
@@ -238,7 +241,7 @@ def obtener_reflexiones():
         })
     return pd.DataFrame(rows)
 
-# Mostrar tabla eventos (fuera bloques condicionales)
+# Mostrar tabla eventos
 def mostrar_tabla_eventos(nombre_evento):
     st.subheader(f"📍 Registros de {nombre_evento}")
     mostrar = st.checkbox("Ver/Ocultar registros", value=False, key=f"mostrar_{nombre_evento}")
@@ -253,18 +256,18 @@ def mostrar_tabla_eventos(nombre_evento):
         st.dataframe(df_oculto, use_container_width=True, hide_index=True)
         st.caption("🔒 Registros ocultos. Activá la casilla para visualizar.")
 
-# UI principal
+# Interfaz Principal
 st.title("Reinicia")
 seleccion = st.selectbox("Seleccioná qué registrar o consultar:", list(eventos.keys()))
 opcion = eventos[seleccion]
 
-# Limpiar estado si no estamos en reflexión
+# Limpiar estado si no es reflexión
 if opcion != "reflexion":
     for key in ["texto_reflexion", "emociones_reflexion", "reset_reflexion"]:
         if key in st.session_state:
             del st.session_state[key]
 
-# Módulo registro evento
+# Módulos: Eventos
 if opcion in [evento_a, evento_b]:
     st.header(f"📍 Registro de evento: {seleccion}")
     fecha_hora_evento = datetime.now(colombia)
@@ -275,11 +278,10 @@ if opcion in [evento_a, evento_b]:
 
     mostrar_racha(opcion, seleccion.split()[0])
 
-# Módulo registro reflexión
+# Módulo Reflexión
 elif opcion == "reflexion":
     st.header("🧠 Registrar reflexión")
 
-    # Limpiar campos tras guardar reflexión
     if st.session_state.get("reset_reflexion", False):
         st.session_state["texto_reflexion"] = ""
         st.session_state["emociones_reflexion"] = []
@@ -315,7 +317,7 @@ elif opcion == "reflexion":
             st.session_state["reset_reflexion"] = True
             st.rerun()
 
-# Módulo historial completo
+# Módulo Historial Completo
 elif opcion == "historial":
     st.header("📑 Historial completo")
     tabs = st.tabs(["🧠 Reflexiones", "✊🏽", "💸"])
@@ -325,7 +327,7 @@ elif opcion == "historial":
         df_r = obtener_reflexiones()
         for i, row in df_r.iterrows():
             with st.expander(f"{row['Fecha']} {row['Emojis']} {row['Hora']}"):
-                st.write(row['Reflexión'])  # Reflexión sin etiqueta
+                st.write(row['Reflexión'])
                 st.markdown("---")
                 st.write(f"**Estados de ánimo:** {row['Emociones']}")
                 st.markdown(f"**Categoría:** {row['Categoría']}")
