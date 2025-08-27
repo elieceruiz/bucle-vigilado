@@ -252,6 +252,13 @@ def obtener_reflexiones():
         })
     return pd.DataFrame(rows)
 
+# Función para formatear la Subcategoría con código numérico delante
+def formatear_subcategoria(codigo_sub):
+    for codigo, info in sistema_categorial.items():
+        if info["subcategoria"] == codigo_sub:
+            return f"{codigo} {codigo_sub}"
+    return codigo_sub
+
 # Mostrar tabla eventos con opción ocultar
 def mostrar_tabla_eventos(nombre_evento):
     st.subheader(f"📍 Registros de {nombre_evento}")
@@ -328,7 +335,7 @@ elif opcion == "reflexion":
             st.session_state["reset_reflexion"] = True
             st.rerun()
 
-# Módulo Historial Completo
+# Módulo Historial Completo con cuarta pestaña consolidado
 elif opcion == "historial":
     st.header("📑 Historial completo")
     tabs = st.tabs(["🧠 Reflexiones", "✊🏽", "💸", "📊 Consolidado"])
@@ -353,16 +360,20 @@ elif opcion == "historial":
 
     with tabs[2]:
         mostrar_tabla_eventos(evento_b)
-    
+
     with tabs[3]:
         st.subheader("📊 Entradas detalladas por categoría y subcategoría")
         df_r = obtener_reflexiones()
         if df_r.empty:
             st.info("No hay reflexiones registradas aún.")
         else:
+            # Formatear columna Subcategoría para anteponer código numérico
+            df_r['Subcategoría'] = df_r['Subcategoría'].apply(formatear_subcategoria)
+
             categorias = df_r['Categoría'].unique()
             for cat in categorias:
-                with st.expander(f"Categoría: {cat}"):
-                    df_cat = df_r[df_r['Categoría'] == cat][['Subcategoría', 'Fecha', 'Hora', 'Emociones', 'Reflexión']]
-                    df_cat = df_cat.sort_values(by=['Fecha', 'Hora'], ascending=[False, False])
-                    st.dataframe(df_cat, use_container_width=True)
+                df_cat = df_r[df_r['Categoría'] == cat][['Subcategoría', 'Fecha', 'Hora', 'Emociones', 'Reflexión']]
+                df_cat = df_cat.sort_values(by=['Fecha', 'Hora'], ascending=[False, False])
+                # Mostrar título con conteo total de entradas por categoría
+                with st.expander(f"{cat} ({len(df_cat)})"):
+                    st.dataframe(df_cat.reset_index(drop=True), use_container_width=True)
