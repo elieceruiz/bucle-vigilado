@@ -335,7 +335,7 @@ elif opcion == "reflexion":
             st.session_state["reset_reflexion"] = True
             st.rerun()
 
-# Módulo Historial Completo con cuarta pestaña consolidado
+# Módulo Historial Completo con cuarta pestaña consolidado con numeración descendente
 elif opcion == "historial":
     st.header("📑 Historial completo")
     tabs = st.tabs(["🧠 Reflexiones", "✊🏽", "💸", "📊 Consolidado"])
@@ -362,7 +362,7 @@ elif opcion == "historial":
         mostrar_tabla_eventos(evento_b)
 
     with tabs[3]:
-        st.subheader("📊 Entradas detalladas por categoría y subcategoría")
+        st.subheader("📊 Entradas detalladas por categoría y subcategoría con numeración descendente")
         df_r = obtener_reflexiones()
         if df_r.empty:
             st.info("No hay reflexiones registradas aún.")
@@ -373,7 +373,9 @@ elif opcion == "historial":
             categorias = df_r['Categoría'].unique()
             for cat in categorias:
                 df_cat = df_r[df_r['Categoría'] == cat][['Subcategoría', 'Fecha', 'Hora', 'Emociones', 'Reflexión']]
-                df_cat = df_cat.sort_values(by=['Fecha', 'Hora'], ascending=[False, False])
-                # Mostrar título con conteo total de entradas por categoría
-                with st.expander(f"{cat} ({len(df_cat)})"):
-                    st.dataframe(df_cat.reset_index(drop=True), use_container_width=True)
+                df_cat = df_cat.sort_values(by=['Fecha', 'Hora'], ascending=[True, True])  # Ascendente para numerar
+                df_cat = df_cat.reset_index(drop=True)
+                total = df_cat.shape[0]
+                df_cat.insert(0, "N°", range(total, 0, -1))  # Numeración descendente
+                with st.expander(f"{cat} ({total})"):
+                    st.write(df_cat.style.hide(axis="index"))
