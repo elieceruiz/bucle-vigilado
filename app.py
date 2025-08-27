@@ -32,7 +32,7 @@ eventos = {
     "💸": evento_b,
 }
 
-# Categorías para reflexiones
+# Sistema categorial para reflexiones
 sistema_categorial = {
     "1.1": {"categoria": "Dinámicas cotidianas", "subcategoria": "Organización del tiempo",
             "descriptor": "Manejo de rutinas y distribución del día",
@@ -72,14 +72,14 @@ sistema_categorial = {
             "observable": "Expresiones de libertad, vergüenza, culpa, normalización; uso de términos religiosos o morales."},
 }
 
-# Inicialización session_state
+# Inicializar últimos eventos en session_state
 for key in [evento_a, evento_b]:
     if key not in st.session_state:
         evento = coleccion_eventos.find_one({"evento": key}, sort=[("fecha_hora", -1)])
         if evento:
             st.session_state[key] = evento["fecha_hora"].astimezone(colombia)
 
-# Clasificación reflexiones con OpenAI
+# Función para clasificar la reflexión con OpenAI
 def clasificar_reflexion_openai(texto_reflexion: str) -> str:
     prompt = f"""Sistema categorial para clasificar reflexiones:
 
@@ -111,7 +111,7 @@ Respuesta sólo con el código, ejemplo: 1.4
     )
     return response.choices[0].message.content.strip()
 
-# Guardar reflexión
+# Guardar reflexión en la base
 def guardar_reflexion(fecha_hora, emociones, reflexion):
     categoria_auto = clasificar_reflexion_openai(reflexion)
     doc = {
@@ -123,12 +123,12 @@ def guardar_reflexion(fecha_hora, emociones, reflexion):
     coleccion_reflexiones.insert_one(doc)
     return categoria_auto
 
-# Registrar evento
+# Registrar evento en base
 def registrar_evento(nombre_evento, fecha_hora):
     coleccion_eventos.insert_one({"evento": nombre_evento, "fecha_hora": fecha_hora})
     st.session_state[nombre_evento] = fecha_hora
 
-# Mostrar racha
+# Mostrar racha con métricas y progreso
 def mostrar_racha(nombre_evento, emoji):
     clave_estado = f"mostrar_racha_{nombre_evento}"
     if clave_estado not in st.session_state:
@@ -189,7 +189,7 @@ def mostrar_racha(nombre_evento, emoji):
         st.metric("Duración", "0 min")
         st.caption("0a 0m 0d 0h 0m 0s")
 
-# Obtener registros
+# Obtener registros para mostrar tablas
 def obtener_registros(nombre_evento):
     eventos = list(coleccion_eventos.find({"evento": nombre_evento}).sort("fecha_hora", -1))
     filas = []
@@ -205,11 +205,11 @@ def obtener_registros(nombre_evento):
             "N°": total - i,
             "Fecha": fecha.strftime("%Y-%m-%d"),
             "Hora": fecha.strftime("%H:%M"),
-            "Sin recaída": diferencia  # Cambio solicitado
+            "Sin recaída": diferencia
         })
     return pd.DataFrame(filas)
 
-# Obtener reflexiones con emojis, emociones y categoría
+# Obtener reflexiones para tabla historial
 def obtener_reflexiones():
     docs = list(coleccion_reflexiones.find({}).sort("fecha_hora", -1))
     rows = []
@@ -237,7 +237,7 @@ def obtener_reflexiones():
         })
     return pd.DataFrame(rows)
 
-# Función para mostrar tabla eventos (fuera de bloques condicionales)
+# Mostrar tabla eventos (función fuera bloque condicional)
 def mostrar_tabla_eventos(nombre_evento):
     st.subheader(f"📍 Registros de {nombre_evento}")
     mostrar = st.checkbox("Ver/Ocultar registros", value=False, key=f"mostrar_{nombre_evento}")
@@ -252,18 +252,18 @@ def mostrar_tabla_eventos(nombre_evento):
         st.dataframe(df_oculto, use_container_width=True, hide_index=True)
         st.caption("🔒 Registros ocultos. Activá la casilla para visualizar.")
 
-# UI Principal
+# Interfaz principal
 st.title("Reinicia")
 seleccion = st.selectbox("Seleccioná qué registrar o consultar:", list(eventos.keys()))
 opcion = eventos[seleccion]
 
-# Limpieza de estado cuando no estamos en reflexión
+# Limpiar estado cuando cambia opción que no sea reflexión
 if opcion != "reflexion":
     for key in ["texto_reflexion", "emociones_reflexion", "reset_reflexion"]:
         if key in st.session_state:
             del st.session_state[key]
 
-# Módulo registro de eventos
+# Módulo registro eventos
 if opcion in [evento_a, evento_b]:
     st.header(f"📍 Registro de evento: {seleccion}")
     fecha_hora_evento = datetime.now(colombia)
@@ -274,16 +274,16 @@ if opcion in [evento_a, evento_b]:
 
     mostrar_racha(opcion, seleccion.split()[0])
 
-# Módulo registro de reflexión
+# Módulo registro reflexión
 elif opcion == "reflexion":
     st.header("🧠 Registrar reflexión")
 
-    # Limpiar campos tras guardar
+    # Limpiar campos si bandera está activa
     if st.session_state.get("reset_reflexion", False):
         st.session_state["texto_reflexion"] = ""
         st.session_state["emociones_reflexion"] = []
         st.session_state["reset_reflexion"] = False
-        st.rerun()  # Forzar recarga
+        st.rerun()
 
     ultima = coleccion_reflexiones.find_one({}, sort=[("fecha_hora", -1)])
     if ultima:
@@ -307,7 +307,7 @@ elif opcion == "reflexion":
             categoria_asignada = guardar_reflexion(fecha_hora_reflexion, emociones, texto_reflexion)
             st.success(f"Reflexión guardada con categoría: {categoria_asignada}")
             st.session_state["reset_reflexion"] = True
-            st.rerun()
+            st.rerun()  # Forzar recarga para limpiar campos
 
 # Módulo historial completo
 elif opcion == "historial":
@@ -319,15 +319,15 @@ elif opcion == "historial":
         df_r = obtener_reflexiones()
         for i, row in df_r.iterrows():
             with st.expander(f"{row['Fecha']} {row['Emojis']} {row['Hora']}"):
-                st.write(f"**Estados de ánimo:** {row['Emociones']}")
+                st.write(row['Reflexión'])  # Reflexión sin etiqueta
                 st.markdown("---")
+                st.write(f"**Estados de ánimo:** {row['Emociones']}")
                 st.markdown(f"**Categoría:** {row['Categoría']}")
                 st.markdown(f"**Subcategoría:** {row['Subcategoría']}")
                 if row['Descriptor']:
                     st.markdown(f"**Descriptor:** {row['Descriptor']}")
                 if row['Observable']:
                     st.markdown(f"**Observable:** {row['Observable']}")
-                st.write(f"**Reflexión:** {row['Reflexión']}")
 
     with tabs[1]:
         mostrar_tabla_eventos(evento_a)
