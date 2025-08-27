@@ -11,6 +11,7 @@ from openai import OpenAI
 st.set_page_config(page_title="Reinicia", layout="centered")
 colombia = pytz.timezone("America/Bogota")
 
+# Conexión a MongoDB
 client = MongoClient(st.secrets["mongo_uri"])
 db = client["registro_bucle"]
 coleccion_eventos = db["eventos"]
@@ -18,8 +19,10 @@ coleccion_reflexiones = db["reflexiones"]
 coleccion_hitos = db["hitos"]
 coleccion_visual = db["log_visual"]
 
+# Cliente OpenAI
 openai_client = OpenAI(api_key=st.secrets["openai_api_key"])
 
+# Definiciones de evento
 evento_a = "La Iniciativa Aquella"
 evento_b = "La Iniciativa de Pago"
 eventos = {
@@ -29,7 +32,7 @@ eventos = {
     "💸": evento_b,
 }
 
-# Sistema categorial extendido con descriptores y observables
+# Sistema categorial completo con descriptores y observables
 sistema_categorial = {
     "1.1": {
         "categoria": "Dinámicas cotidianas",
@@ -105,6 +108,14 @@ sistema_categorial = {
     }
 }
 
+# Estado inicial
+for key in [evento_a, evento_b]:
+    if key not in st.session_state:
+        evento = coleccion_eventos.find_one({"evento": key}, sort=[("fecha_hora", -1)])
+        if evento:
+            st.session_state[key] = evento["fecha_hora"].astimezone(colombia)
+
+# Funciones
 def clasificar_reflexion_openai(texto_reflexion: str) -> str:
     prompt = f"""Sistema categorial para clasificar reflexiones:
 
@@ -147,25 +158,80 @@ def guardar_reflexion(fecha_hora, emociones, reflexion):
     coleccion_reflexiones.insert_one(doc)
     return categoria_auto
 
-def clasificar_reflexiones_pendientes():
-    pendientes = list(coleccion_reflexiones.find({"categoria_categorial": {"$exists": False}}))
-    if not pendientes:
-        st.info("No hay reflexiones pendientes de clasificación.")
-        return
+def registrar_evento(nombre_evento, fecha_hora):
+    coleccion_eventos.insert_one({"evento": nombre_evento, "fecha_hora": fecha_hora})
+    st.session_state[nombre_evento] = fecha_hora
 
-    st.info(f"Procesando {len(pendientes)} reflexiones pendientes...")
-    for doc in pendientes:
-        _id = doc["_id"]
-        texto = doc.get("reflexion", "").strip()
-        if texto:
-            try:
-                cat = clasificar_reflexion_openai(texto)
-                coleccion_reflexiones.update_one({"_id": _id}, {"$set": {"categoria_categorial": cat}})
-                st.success(f"Reflexión {_id} categorizada como {cat}")
-            except Exception as e:
-                st.error(f"Error clasificando reflexión {_id}: {str(e)}")
+def mostrar_racha(nombre_evento, emoji):
+    clave_estado = f"mostrar_racha_{nombre_evento}"
+    if clave_estado not in st.session_state:
+        st.session_state[clave_estado] = False
+
+    mostrar = st.checkbox("Ver/ocultar racha", value=st.session_state[clave_estado], key=f"check_{nombre_evento}")
+    st.session_state[clave_estado] = mostrar
+
+    st.markdown("### ⏱️ Racha")
+
+    if nombre_evento in st.session_state:
+        st_autorefresh(interval=1000, limit=None, key=f"auto_{nombre_evento}")
+
+        ultimo = st.session_state[nombre_evento]
+        ahora = datetime.now(colombia)
+        delta = ahora - ultimo
+        detalle = relativedelta(ahora, ultimo)
+        minutos = int(delta.total_seconds() // 60)
+        tiempo = f"{detalle.years}a {detalle.months}m {detalle.days}d {detalle.hours}h {detalle.minutes}m {detalle.seconds}s"
+
+        if mostrar:
+            st.metric("Duración", f"{minutos:,} min", tiempo)
+            st.caption(f"🔴 Última recaída: {ultimo.strftime('%Y-%m-%d %H:%M:%S')}")
+
+            if nombre_evento == "La Iniciativa Aquella":
+                registros = list(coleccion_eventos.find({"evento": nombre_evento}).sort("fecha_hora", -1))
+                record = max([(registros[i - 1]["fecha_hora"] - registros[i]["fecha_hora"])
+                              for i in range(1, len(registros))], default=delta)
+                record_str = str(record).split('.')[0]
+
+                umbral = timedelta(days=3)
+                meta_5 = timedelta(days=5)
+                meta_21 = timedelta(days=21)
+
+                if delta > umbral:
+                    st.success("✅ Superaste la zona crítica de las 72 horas.")
+                if delta > meta_5:
+                    st.success("🌱 ¡Sostenés 5 días! Se está instalando un nuevo hábito.")
+                if delta > meta_21:
+                    st.success("🏗️ 21 días: ya creaste una estructura sólida.")
+
+                if delta < umbral:
+                    meta_actual = umbral
+                    label_meta = "zona crítica (3 días)"
+                elif delta < meta_5:
+                    meta_actual = meta_5
+                    label_meta = "meta base (5 días)"
+                elif delta < meta_21:
+                    meta_actual = meta_21
+                    label_meta = "meta sólida (21 días)"
+                elif delta < record:
+                    meta_actual = record
+                    label_meta = "tu récord"
+                else:
+                    meta_actual = delta
+                    label_meta = "¡Nuevo récord!"
+
+                progreso_visual = min(delta.total_seconds() / meta_actual.total_seconds(), 1.0)
+                porcentaje_record = (delta.total_seconds() / record.total_seconds()) * 100
+
+                st.markdown(f"🏅 **Récord personal:** `{record_str}`")
+                st.markdown(f"📊 **Progreso hacia {label_meta}:** `{progreso_visual*100:.1f}%`")
+                st.progress(progreso_visual)
+                st.markdown(f"📈 **Progreso frente al récord:** `{porcentaje_record:.1f}%`")
         else:
-            st.warning(f"Reflexión {_id} vacía, no clasificada.")
+            st.metric("Duración", "•••••• min", "••a ••m ••d ••h ••m ••s")
+            st.caption("🔒 Información sensible oculta. Activá la casilla para visualizar.")
+    else:
+        st.metric("Duración", "0 min")
+        st.caption("0a 0m 0d 0h 0m 0s")
 
 def obtener_registros(nombre_evento):
     eventos = list(coleccion_eventos.find({"evento": nombre_evento}).sort("fecha_hora", -1))
@@ -224,8 +290,7 @@ if opcion in [evento_a, evento_b]:
     st.header(f"📍 Registro de evento: {seleccion}")
     fecha_hora_evento = datetime.now(colombia)
     if st.button("☠️ ¿Registrar?"):
-        coleccion_eventos.insert_one({"evento": opcion, "fecha_hora": fecha_hora_evento})
-        st.session_state[opcion] = fecha_hora_evento
+        registrar_evento(opcion, fecha_hora_evento)
         st.success(f"Evento '{seleccion}' registrado a las {fecha_hora_evento.strftime('%H:%M:%S')}")
     mostrar_racha(opcion, seleccion.split()[0])
 
@@ -274,8 +339,6 @@ elif opcion == "historial":
                     st.markdown(f"**Descriptor:** {row['Descriptor']}")
                 if row['Observable']:
                     st.markdown(f"**Observable:** {row['Observable']}")
-        if st.button("Clasificar todas las reflexiones pendientes"):
-            clasificar_reflexiones_pendientes()
     def mostrar_tabla_eventos(nombre_evento):
         st.subheader(f"📍 Registros de {nombre_evento}")
         mostrar = st.checkbox("Ver/Ocultar registros", value=False, key=f"mostrar_{nombre_evento}")
