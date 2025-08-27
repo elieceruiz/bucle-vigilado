@@ -362,20 +362,18 @@ elif opcion == "historial":
         mostrar_tabla_eventos(evento_b)
 
     with tabs[3]:
-        st.subheader("📊 Entradas detalladas por categoría y subcategoría con numeración descendente")
+        st.subheader("📊 Entradas detalladas por categoría y subcategoría con numeración")
         df_r = obtener_reflexiones()
         if df_r.empty:
             st.info("No hay reflexiones registradas aún.")
         else:
-            # Formatear columna Subcategoría para anteponer código numérico
             df_r['Subcategoría'] = df_r['Subcategoría'].apply(formatear_subcategoria)
-
             categorias = df_r['Categoría'].unique()
             for cat in categorias:
                 df_cat = df_r[df_r['Categoría'] == cat][['Subcategoría', 'Fecha', 'Hora', 'Emociones', 'Reflexión']]
-                df_cat = df_cat.sort_values(by=['Fecha', 'Hora'], ascending=[True, True])  # Ascendente para numerar
+                df_cat = df_cat.sort_values(by=['Fecha', 'Hora'], ascending=[False, False])  # más reciente arriba
                 df_cat = df_cat.reset_index(drop=True)
-                total = df_cat.shape[0]
-                df_cat.insert(0, "N°", range(total, 0, -1))  # Numeración descendente
+                total = len(df_cat)
+                df_cat.insert(0, "N°", range(total, 0, -1))
                 with st.expander(f"{cat} ({total})"):
-                    st.write(df_cat.style.hide(axis="index"))
+                    st.dataframe(df_cat.style.hide(axis='index'), use_container_width=True)
