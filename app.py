@@ -72,7 +72,7 @@ sistema_categorial = {
             "observable": "Expresiones de libertad, vergüenza, culpa, normalización; uso de términos religiosos o morales."}
 }
 
-# Estado inicial de eventos
+# Estado inicial
 for key in [evento_a, evento_b]:
     if key not in st.session_state:
         evento = coleccion_eventos.find_one({"evento": key}, sort=[("fecha_hora", -1)])
@@ -80,6 +80,7 @@ for key in [evento_a, evento_b]:
             st.session_state[key] = evento["fecha_hora"].astimezone(colombia)
 
 # Funciones
+
 def clasificar_reflexion_openai(texto_reflexion: str) -> str:
     prompt = f"""Sistema categorial para clasificar reflexiones:
 
@@ -111,6 +112,7 @@ Respuesta sólo con el código, ejemplo: 1.4
     )
     return response.choices[0].message.content.strip()
 
+
 def guardar_reflexion(fecha_hora, emociones, reflexion):
     categoria_auto = clasificar_reflexion_openai(reflexion)
     doc = {
@@ -122,15 +124,17 @@ def guardar_reflexion(fecha_hora, emociones, reflexion):
     coleccion_reflexiones.insert_one(doc)
     return categoria_auto
 
+
 def registrar_evento(nombre_evento, fecha_hora):
     coleccion_eventos.insert_one({"evento": nombre_evento, "fecha_hora": fecha_hora})
     st.session_state[nombre_evento] = fecha_hora
+
 
 def mostrar_racha(nombre_evento, emoji):
     clave_estado = f"mostrar_racha_{nombre_evento}"
     if clave_estado not in st.session_state:
         st.session_state[clave_estado] = False
-    
+
     mostrar = st.checkbox("Ver/ocultar racha", value=st.session_state[clave_estado], key=f"check_{nombre_evento}")
     st.session_state[clave_estado] = mostrar
 
@@ -197,6 +201,7 @@ def mostrar_racha(nombre_evento, emoji):
         st.metric("Duración", "0 min")
         st.caption("0a 0m 0d 0h 0m 0s")
 
+
 def obtener_registros(nombre_evento):
     eventos = list(coleccion_eventos.find({"evento": nombre_evento}).sort("fecha_hora", -1))
     filas = []
@@ -215,6 +220,7 @@ def obtener_registros(nombre_evento):
             "Duración sin caer": diferencia
         })
     return pd.DataFrame(filas)
+
 
 def obtener_reflexiones():
     docs = list(coleccion_reflexiones.find({}).sort("fecha_hora", -1))
@@ -243,14 +249,15 @@ def obtener_reflexiones():
         })
     return pd.DataFrame(rows)
 
-# UI principal
+
 st.title("Reinicia")
 seleccion = st.selectbox("Seleccioná qué registrar o consultar:", list(eventos.keys()))
 opcion = eventos[seleccion]
 
 if opcion != "reflexion":
-    for key in ["texto_reflexion", "emociones_reflexion", "limpiar_reflexion", "📝 Guardar reflexión"]:
-        st.session_state.pop(key, None)
+    for key in ["texto_reflexion", "emociones_reflexion", "reset_reflexion"]:
+        if key in st.session_state:
+            del st.session_state[key]
 
 if opcion in [evento_a, evento_b]:
     st.header(f"📍 Registro de evento: {seleccion}")
@@ -266,6 +273,8 @@ elif opcion == "reflexion":
         st.session_state["texto_reflexion"] = ""
     if "emociones_reflexion" not in st.session_state:
         st.session_state["emociones_reflexion"] = []
+    if "reset_reflexion" not in st.session_state:
+        st.session_state["reset_reflexion"] = False
 
     ultima = coleccion_reflexiones.find_one({}, sort=[("fecha_hora", -1)])
     if ultima:
@@ -287,11 +296,12 @@ elif opcion == "reflexion":
         if st.button("📝 Guardar reflexión"):
             categoria_asignada = guardar_reflexion(fecha_hora_reflexion, emociones, texto_reflexion)
             st.success(f"Reflexión guardada con categoría: {categoria_asignada}")
-            # Restablecer campos después de guardar
-            st.session_state["texto_reflexion"] = ""
-            st.session_state["emociones_reflexion"] = []
+            st.session_state["reset_reflexion"] = True
 
-    st.markdown("<div style='margin-bottom: 300px;'></div>", unsafe_allow_html=True)
+    if st.session_state["reset_reflexion"]:
+        st.session_state["texto_reflexion"] = ""
+        st.session_state["emociones_reflexion"] = []
+        st.session_state["reset_reflexion"] = False
 
 elif opcion == "historial":
     st.header("📑 Historial completo")
