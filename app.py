@@ -7,11 +7,11 @@ from dateutil.relativedelta import relativedelta
 from streamlit_autorefresh import st_autorefresh
 from openai import OpenAI
 
-# Configuración
+# Configuración general
 st.set_page_config(page_title="Reinicia", layout="centered")
 colombia = pytz.timezone("America/Bogota")
 
-# Conexión a MongoDB
+# Conexión MongoDB
 client = MongoClient(st.secrets["mongo_uri"])
 db = client["registro_bucle"]
 coleccion_eventos = db["eventos"]
@@ -22,7 +22,7 @@ coleccion_visual = db["log_visual"]
 # Cliente OpenAI
 openai_client = OpenAI(api_key=st.secrets["openai_api_key"])
 
-# Definiciones de evento
+# Definiciones de eventos
 evento_a = "La Iniciativa Aquella"
 evento_b = "La Iniciativa de Pago"
 eventos = {
@@ -32,7 +32,7 @@ eventos = {
     "💸": evento_b,
 }
 
-# Sistema categorial completo
+# Sistema categorial completo con descriptores y observables
 sistema_categorial = {
     "1.1": {"categoria": "Dinámicas cotidianas", "subcategoria": "Organización del tiempo",
             "descriptor": "Manejo de rutinas y distribución del día",
@@ -72,7 +72,7 @@ sistema_categorial = {
             "observable": "Expresiones de libertad, vergüenza, culpa, normalización; uso de términos religiosos o morales."}
 }
 
-# Estado inicial con carga de última fecha evento
+# Estado inicial de eventos
 for key in [evento_a, evento_b]:
     if key not in st.session_state:
         evento = coleccion_eventos.find_one({"evento": key}, sort=[("fecha_hora", -1)])
@@ -80,7 +80,6 @@ for key in [evento_a, evento_b]:
             st.session_state[key] = evento["fecha_hora"].astimezone(colombia)
 
 # Funciones
-
 def clasificar_reflexion_openai(texto_reflexion: str) -> str:
     prompt = f"""Sistema categorial para clasificar reflexiones:
 
@@ -267,29 +266,31 @@ elif opcion == "reflexion":
         st.session_state["texto_reflexion"] = ""
     if "emociones_reflexion" not in st.session_state:
         st.session_state["emociones_reflexion"] = []
-    if "limpiar_reflexion" not in st.session_state:
-        st.session_state["limpiar_reflexion"] = False
-    if st.session_state["limpiar_reflexion"]:
-        st.session_state["texto_reflexion"] = ""
-        st.session_state["emociones_reflexion"] = []
-        st.session_state["limpiar_reflexion"] = False
+
     ultima = coleccion_reflexiones.find_one({}, sort=[("fecha_hora", -1)])
     if ultima:
         fecha = ultima["fecha_hora"].astimezone(colombia)
         st.caption(f"📌 Última registrada: {fecha.strftime('%Y-%m-%d %H:%M:%S')}")
+
     fecha_hora_reflexion = datetime.now(colombia)
     emociones_opciones = [
         "😰 Ansioso", "😡 Irritado / Rabia contenida", "💪 Firme / Decidido",
         "😌 Aliviado / Tranquilo", "😓 Culpable", "🥱 Apático / Cansado", "😔 Triste"
     ]
+
     emociones = st.multiselect("¿Cómo te sentías?", emociones_opciones, key="emociones_reflexion")
     texto_reflexion = st.text_area("¿Querés dejar algo escrito?", height=150, key="texto_reflexion")
+
     puede_guardar = texto_reflexion.strip() or emociones
+
     if puede_guardar:
         if st.button("📝 Guardar reflexión"):
             categoria_asignada = guardar_reflexion(fecha_hora_reflexion, emociones, texto_reflexion)
             st.success(f"Reflexión guardada con categoría: {categoria_asignada}")
-            st.session_state["limpiar_reflexion"] = True
+            # Restablecer campos después de guardar
+            st.session_state["texto_reflexion"] = ""
+            st.session_state["emociones_reflexion"] = []
+
     st.markdown("<div style='margin-bottom: 300px;'></div>", unsafe_allow_html=True)
 
 elif opcion == "historial":
@@ -309,6 +310,7 @@ elif opcion == "historial":
                     st.markdown(f"**Descriptor:** {row['Descriptor']}")
                 if row['Observable']:
                     st.markdown(f"**Observable:** {row['Observable']}")
+
     def mostrar_tabla_eventos(nombre_evento):
         st.subheader(f"📍 Registros de {nombre_evento}")
         mostrar = st.checkbox("Ver/Ocultar registros", value=False, key=f"mostrar_{nombre_evento}")
@@ -322,6 +324,7 @@ elif opcion == "historial":
             df_oculto["Duración sin caer"] = "••a ••m ••d ••h ••m"
             st.dataframe(df_oculto, use_container_width=True, hide_index=True)
             st.caption("🔒 Registros ocultos. Activá el check para visualizar.")
+
     with tabs[1]:
         mostrar_tabla_eventos(evento_a)
     with tabs[2]:
