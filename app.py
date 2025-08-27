@@ -278,7 +278,7 @@ if opcion != "reflexion":
         if key in st.session_state:
             del st.session_state[key]
 
-# Módulo Eventos
+# Módulos: Eventos
 if opcion in [evento_a, evento_b]:
     st.header(f"📍 Registro de evento: {seleccion}")
     fecha_hora_evento = datetime.now(colombia)
@@ -331,7 +331,7 @@ elif opcion == "reflexion":
 # Módulo Historial Completo
 elif opcion == "historial":
     st.header("📑 Historial completo")
-    tabs = st.tabs(["🧠 Reflexiones", "✊🏽", "💸"])
+    tabs = st.tabs(["🧠 Reflexiones", "✊🏽", "💸", "📊 Consolidado"])
 
     with tabs[0]:
         st.subheader("📍 Historial de reflexiones")
@@ -353,3 +353,16 @@ elif opcion == "historial":
 
     with tabs[2]:
         mostrar_tabla_eventos(evento_b)
+    
+    with tabs[3]:
+        st.subheader("📊 Entradas detalladas por categoría y subcategoría")
+        df_r = obtener_reflexiones()
+        if df_r.empty:
+            st.info("No hay reflexiones registradas aún.")
+        else:
+            categorias = df_r['Categoría'].unique()
+            for cat in categorias:
+                with st.expander(f"Categoría: {cat}"):
+                    df_cat = df_r[df_r['Categoría'] == cat][['Subcategoría', 'Fecha', 'Hora', 'Emociones', 'Reflexión']]
+                    df_cat = df_cat.sort_values(by=['Fecha', 'Hora'], ascending=[False, False])
+                    st.dataframe(df_cat, use_container_width=True)
