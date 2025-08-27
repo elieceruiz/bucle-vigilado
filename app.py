@@ -335,7 +335,7 @@ elif opcion == "reflexion":
             st.session_state["reset_reflexion"] = True
             st.rerun()
 
-# Módulo Historial Completo con cuarta pestaña consolidado sin expander y con numeración personalizada
+# Módulo Historial Completo con cuarta pestaña consolidado
 elif opcion == "historial":
     st.header("📑 Historial completo")
     tabs = st.tabs(["🧠 Reflexiones", "✊🏽", "💸", "📊 Consolidado"])
@@ -362,18 +362,18 @@ elif opcion == "historial":
         mostrar_tabla_eventos(evento_b)
 
     with tabs[3]:
-        st.subheader("📊 Entradas detalladas por categoría y subcategoría sin expander")
+        st.subheader("📊 Entradas detalladas por categoría y subcategoría")
         df_r = obtener_reflexiones()
         if df_r.empty:
             st.info("No hay reflexiones registradas aún.")
         else:
+            # Formatear columna Subcategoría para anteponer código numérico
             df_r['Subcategoría'] = df_r['Subcategoría'].apply(formatear_subcategoria)
+
             categorias = df_r['Categoría'].unique()
             for cat in categorias:
                 df_cat = df_r[df_r['Categoría'] == cat][['Subcategoría', 'Fecha', 'Hora', 'Emociones', 'Reflexión']]
                 df_cat = df_cat.sort_values(by=['Fecha', 'Hora'], ascending=[False, False])
-                df_cat = df_cat.reset_index(drop=True)
-                total = len(df_cat)
-                df_cat.insert(0, "N°", range(total, 0, -1))
-                st.markdown(f"### {cat} ({total})")
-                st.markdown(df_cat.to_markdown(index=False))
+                # Mostrar título con conteo total de entradas por categoría
+                with st.expander(f"{cat} ({len(df_cat)})"):
+                    st.dataframe(df_cat.reset_index(drop=True), use_container_width=True)
