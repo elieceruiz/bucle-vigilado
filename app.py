@@ -111,7 +111,7 @@ Respuesta sólo con el código, ejemplo: 1.4
     )
     return response.choices[0].message.content.strip()
 
-# Guardar reflexión en DB
+# Guardar reflexión
 def guardar_reflexion(fecha_hora, emociones, reflexion):
     categoria_auto = clasificar_reflexion_openai(reflexion)
     doc = {
@@ -123,7 +123,7 @@ def guardar_reflexion(fecha_hora, emociones, reflexion):
     coleccion_reflexiones.insert_one(doc)
     return categoria_auto
 
-# Registrar evento en DB
+# Registrar evento
 def registrar_evento(nombre_evento, fecha_hora):
     coleccion_eventos.insert_one({"evento": nombre_evento, "fecha_hora": fecha_hora})
     st.session_state[nombre_evento] = fecha_hora
@@ -193,7 +193,7 @@ def mostrar_racha(nombre_evento, emoji):
         st.metric("Duración", "0 min")
         st.caption("0a 0m 0d 0h 0m 0s")
 
-# Obtener registros para tabla
+# Obtener registros para tabla, con formato limpio omitiendo ceros
 def obtener_registros(nombre_evento):
     eventos = list(coleccion_eventos.find({"evento": nombre_evento}).sort("fecha_hora", -1))
     filas = []
@@ -204,7 +204,18 @@ def obtener_registros(nombre_evento):
         diferencia = ""
         if anterior:
             detalle = relativedelta(fecha, anterior)
-            diferencia = f"{detalle.years}a {detalle.months}m {detalle.days}d {detalle.hours}h {detalle.minutes}m"
+            partes = []
+            if detalle.years:
+                partes.append(f"{detalle.years}a")
+            if detalle.months:
+                partes.append(f"{detalle.months}m")
+            if detalle.days:
+                partes.append(f"{detalle.days}d")
+            if detalle.hours:
+                partes.append(f"{detalle.hours}h")
+            if detalle.minutes:
+                partes.append(f"{detalle.minutes}m")
+            diferencia = " ".join(partes)
         filas.append({
             "N°": total - i,
             "Fecha": fecha.strftime("%Y-%m-%d"),
@@ -241,7 +252,7 @@ def obtener_reflexiones():
         })
     return pd.DataFrame(rows)
 
-# Mostrar tabla eventos
+# Mostrar tabla eventos con opción ocultar
 def mostrar_tabla_eventos(nombre_evento):
     st.subheader(f"📍 Registros de {nombre_evento}")
     mostrar = st.checkbox("Ver/Ocultar registros", value=False, key=f"mostrar_{nombre_evento}")
@@ -267,7 +278,7 @@ if opcion != "reflexion":
         if key in st.session_state:
             del st.session_state[key]
 
-# Módulos: Eventos
+# Módulo Eventos
 if opcion in [evento_a, evento_b]:
     st.header(f"📍 Registro de evento: {seleccion}")
     fecha_hora_evento = datetime.now(colombia)
