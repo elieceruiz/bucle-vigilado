@@ -261,7 +261,7 @@ def formatear_subcategoria(codigo_sub):
 
 # Mostrar tabla eventos con opción ocultar
 def mostrar_tabla_eventos(nombre_evento):
-    st.subheader(f"📍 Registros de {nombre_evento}")
+    st.subheader(f"📍 Registros")
     mostrar = st.checkbox("Ver/Ocultar registros", value=False, key=f"mostrar_{nombre_evento}")
     df = obtener_registros(nombre_evento)
     if mostrar:
@@ -287,12 +287,13 @@ if opcion != "reflexion":
 
 # Módulos: Eventos
 if opcion in [evento_a, evento_b]:
-    st.header(f"📍 Registro de evento: {seleccion}")
+    st.header(f"📍 Registro de evento")
     fecha_hora_evento = datetime.now(colombia)
 
     if st.button("☠️ ¿Registrar?"):
         registrar_evento(opcion, fecha_hora_evento)
         st.success(f"Evento '{seleccion}' registrado a las {fecha_hora_evento.strftime('%H:%M:%S')}")
+        st.rerun()
 
     mostrar_racha(opcion, seleccion.split()[0])
 
