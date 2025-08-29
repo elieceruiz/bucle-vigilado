@@ -224,7 +224,7 @@ def obtener_registros(nombre_evento):
         })
     return pd.DataFrame(filas)
 
-# Obtener reflexiones para historial
+# Obtener reflexiones para historial, con código subcategoría incluido
 def obtener_reflexiones():
     docs = list(coleccion_reflexiones.find({}).sort("fecha_hora", -1))
     rows = []
@@ -246,18 +246,12 @@ def obtener_reflexiones():
             "Emociones": emociones,
             "Categoría": info_cat["categoria"],
             "Subcategoría": info_cat["subcategoria"],
+            "Código Subcategoría": codigo_cat,
             "Descriptor": info_cat.get("descriptor", ""),
             "Observable": info_cat.get("observable", ""),
             "Reflexión": d.get("reflexion", "")
         })
     return pd.DataFrame(rows)
-
-# Función para formatear la Subcategoría con código numérico delante
-def formatear_subcategoria(codigo_sub):
-    for codigo, info in sistema_categorial.items():
-        if info["subcategoria"] == codigo_sub:
-            return f"{codigo} {codigo_sub}"
-    return codigo_sub
 
 # Mostrar tabla eventos con opción ocultar
 def mostrar_tabla_eventos(nombre_evento):
@@ -345,7 +339,7 @@ elif opcion == "historial":
         st.subheader("📍 Historial de reflexiones")
         df_r = obtener_reflexiones()
         for i, row in df_r.iterrows():
-            with st.expander(f"{row['Fecha']} {row['Emojis']} {row['Hora']}"):
+            with st.expander(f"{row['Fecha']} {row['Emojis']} {row['Hora']} | {row['Código Subcategoría']}"):
                 st.write(row['Reflexión'])
                 st.markdown("---")
                 st.write(f"**Estados de ánimo:** {row['Emociones']}")
