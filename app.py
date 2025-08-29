@@ -16,23 +16,21 @@ client = MongoClient(st.secrets["mongo_uri"])
 db = client["registro_bucle"]
 coleccion_eventos = db["eventos"]
 coleccion_reflexiones = db["reflexiones"]
-coleccion_hitos = db["hitos"]
-coleccion_visual = db["log_visual"]
 
 # Cliente OpenAI
 openai_client = OpenAI(api_key=st.secrets["openai_api_key"])
 
-# Eventos definidos
+# Eventos y emojis definidos
 evento_a = "La Iniciativa Aquella"
 evento_b = "La Iniciativa de Pago"
+
 eventos = {
     "🧠 Reflexión": "reflexion",
     "📑 Historial completo": "historial",
-    "✊🏽": evento_a,
-    "💸": evento_b,
+    "✊🏽 La Iniciativa Aquella": evento_a,
+    "💸 La Iniciativa de Pago": evento_b,
 }
 
-# Sistema categorial para reflexiones
 sistema_categorial = {
     "1.1": {"categoria": "Dinámicas cotidianas", "subcategoria": "Organización del tiempo",
             "descriptor": "Manejo de rutinas y distribución del día",
@@ -147,7 +145,7 @@ def mostrar_racha(nombre_evento, emoji):
         if mostrar:
             st.metric("Duración", f"{minutos:,} min", tiempo)
             st.caption(f"🔴 Última recaída: {ultimo.strftime('%Y-%m-%d %H:%M:%S')}")
-            if nombre_evento == "La Iniciativa Aquella":
+            if nombre_evento == evento_a:
                 registros = list(coleccion_eventos.find({"evento": nombre_evento}).sort("fecha_hora", -1))
                 record = max([(registros[i - 1]["fecha_hora"] - registros[i]["fecha_hora"])
                               for i in range(1, len(registros))], default=delta)
@@ -193,7 +191,6 @@ def mostrar_racha(nombre_evento, emoji):
         st.metric("Duración", "0 min")
         st.caption("0a 0m 0d 0h 0m 0s")
 
-# Obtener registros para tabla, con formato limpio omitiendo ceros
 def obtener_registros(nombre_evento):
     eventos = list(coleccion_eventos.find({"evento": nombre_evento}).sort("fecha_hora", -1))
     filas = []
@@ -224,7 +221,6 @@ def obtener_registros(nombre_evento):
         })
     return pd.DataFrame(filas)
 
-# Obtener reflexiones para historial, con código subcategoría incluido
 def obtener_reflexiones():
     docs = list(coleccion_reflexiones.find({}).sort("fecha_hora", -1))
     rows = []
@@ -253,7 +249,6 @@ def obtener_reflexiones():
         })
     return pd.DataFrame(rows)
 
-# Mostrar tabla eventos con opción ocultar
 def mostrar_tabla_eventos(nombre_evento):
     st.subheader(f"📍 Registros")
     mostrar = st.checkbox("Ver/Ocultar registros", value=False, key=f"mostrar_{nombre_evento}")
@@ -279,7 +274,6 @@ if opcion != "reflexion":
         if key in st.session_state:
             del st.session_state[key]
 
-# Módulos: Eventos
 if opcion in [evento_a, evento_b]:
     st.header(f"📍 Registro de evento")
     fecha_hora_evento = datetime.now(colombia)
@@ -291,7 +285,6 @@ if opcion in [evento_a, evento_b]:
 
     mostrar_racha(opcion, seleccion.split()[0])
 
-# Módulo Reflexión
 elif opcion == "reflexion":
     st.header("🧠 Registrar reflexión")
 
@@ -330,10 +323,9 @@ elif opcion == "reflexion":
             st.session_state["reset_reflexion"] = True
             st.rerun()
 
-# Módulo Historial Completo sin cuarta pestaña
 elif opcion == "historial":
     st.header("📑 Historial completo")
-    tabs = st.tabs(["🧠 Reflexiones", "✊🏽", "💸"])
+    tabs = st.tabs(["🧠", "✊🏽", "⬅️", "💸"])
 
     with tabs[0]:
         st.subheader("📍 Historial de reflexiones")
@@ -354,4 +346,56 @@ elif opcion == "historial":
         mostrar_tabla_eventos(evento_a)
 
     with tabs[2]:
+        st.subheader("🏅 Récord personal y progreso - La Iniciativa Aquella")
+
+        if "mostrar_racha_detalles" not in st.session_state:
+            st.session_state["mostrar_racha_detalles"] = False
+
+        mostrar = st.checkbox("Ver/ocultar detalles", value=st.session_state["mostrar_racha_detalles"], key="mostrar_racha_detalles")
+
+        if mostrar:
+            if evento_a in st.session_state:
+                ultimo = st.session_state[evento_a]
+                ahora = datetime.now(colombia)
+                delta = ahora - ultimo
+                registros = list(coleccion_eventos.find({"evento": evento_a}).sort("fecha_hora", -1))
+                record = max([(registros[i - 1]["fecha_hora"] - registros[i]["fecha_hora"])
+                              for i in range(1, len(registros))], default=delta)
+                total_dias = record.days
+                horas = record.seconds // 3600
+                minutos_rec = (record.seconds % 3600) // 60
+                segundos = record.seconds % 60
+                record_str = f"{total_dias} días, {horas:02d}:{minutos_rec:02d}:{segundos:02d}"
+                umbral = timedelta(days=3)
+                meta_5 = timedelta(days=5)
+                meta_21 = timedelta(days=21)
+
+                if delta < umbral:
+                    meta_actual = umbral
+                    label_meta = "zona crítica (3 días)"
+                elif delta < meta_5:
+                    meta_actual = meta_5
+                    label_meta = "meta base (5 días)"
+                elif delta < meta_21:
+                    meta_actual = meta_21
+                    label_meta = "meta sólida (21 días)"
+                elif delta < record:
+                    meta_actual = record
+                    label_meta = "tu récord"
+                else:
+                    meta_actual = delta
+                    label_meta = "¡Nuevo récord!"
+                progreso_visual = min(delta.total_seconds() / meta_actual.total_seconds(), 1.0)
+                porcentaje_record = (delta.total_seconds() / record.total_seconds()) * 100
+
+                st.markdown(f"🏅 **Récord personal:** `{record_str}`")
+                st.markdown(f"📊 **Progreso hacia {label_meta}:** `{progreso_visual * 100:.1f}%`")
+                st.progress(progreso_visual)
+                st.markdown(f"📈 **Progreso frente al récord:** `{porcentaje_record:.1f}%`")
+            else:
+                st.write("No hay registro de eventos para 'La Iniciativa Aquella'.")
+        else:
+            st.write("Detalles ocultos. Marcá la casilla para mostrar.")
+
+    with tabs[3]:
         mostrar_tabla_eventos(evento_b)
