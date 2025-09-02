@@ -3,7 +3,7 @@ from datetime import datetime, timedelta
 from pymongo import MongoClient
 import pytz
 import pandas as pd
-from dateutil.relativedelta import relativedelta
+from
 from streamlit_autorefresh import st_autorefresh
 from openai import OpenAI
 
@@ -56,11 +56,7 @@ sistema_categorial = {
             "descriptor": "Significados culturales y personales del sexo pago.",
             "observable": "Uso de términos como tabú, normal, peligroso, necesario, transgresión; narrativas de estigma o aceptación."},
     "2.4": {"categoria": "Consumo de sexo pago", "subcategoria": "Efectos en la trayectoria íntima",
-            "descriptor": "Impacto en la experiencia personal y en la memoria íntima.",
-            "observable": "Relatos de aprendizaje, arrepentimiento, culpa, gratificación, comparación con otras prácticas sexuales."},
-    "3.1": {"categoria": "Masturbación", "subcategoria": "Prácticas de autocuidado",
-            "descriptor": "Uso de la masturbación como estrategia de bienestar.",
-            "observable": "Relatos sobre relajación, control del estrés, conciliación del sueño, cuidado de la salud sexual."},
+            " del sueño, cuidado de la salud sexual."},
     "3.2": {"categoria": "Masturbación", "subcategoria": "Placer y exploración del cuerpo",
             "descriptor": "Búsqueda de satisfacción personal y autoconocimiento.",
             "observable": "Narrativas sobre fantasías, técnicas usadas, experimentación, referencias a placer físico."},
@@ -69,21 +65,7 @@ sistema_categorial = {
             "observable": "Relatos de momentos en soledad, rituales íntimos, ocultamiento frente a otros."},
     "3.4": {"categoria": "Masturbación", "subcategoria": "Representaciones culturales",
             "descriptor": "Significados sociales y personales atribuidos a la masturbación.",
-            "observable": "Expresiones de libertad, vergüenza, culpa, normalización; uso de términos religiosos o morales."},
-}
-
-# Inicializar últimos eventos en session_state
-for key in [evento_a, evento_b]:
-    if key not in st.session_state:
-        evento = coleccion_eventos.find_one({"evento": key}, sort=[("fecha_hora", -1)])
-        if evento:
-            st.session_state[key] = evento["fecha_hora"].astimezone(colombia)
-
-# Clasificar reflexión con OpenAI
-def clasificar_reflexion_openai(texto_reflexion: str) -> str:
-    prompt = f"""Sistema categorial para clasificar reflexiones:
-
-1.1 Organización del tiempo
+            "observable": "Expresiones de libertad, vergüenza, culpa, normalización; uso de términos
 1.2 Relaciones sociales
 1.3 Contextos de intimidad
 1.4 Factores emocionales
@@ -135,18 +117,12 @@ def mostrar_racha(nombre_evento, emoji):
         st.session_state[clave_estado] = False
     mostrar = st.checkbox("Ver/ocultar racha", value=st.session_state[clave_estado], key=f"check_{nombre_evento}")
     st.session_state[clave_estado] = mostrar
-    st.markdown("### ⏱️ Racha")
-    if nombre_evento in st.session_state:
-        st_autorefresh(interval=1000, limit=None, key=f"auto_{nombre_evento}")
-        ultimo = st.session_state[nombre_evento]
-        ahora = datetime.now(colombia)
-        delta = ahora - ultimo
-        detalle = relativedelta(ahora, ultimo)
-        minutos = int(delta.total_seconds() // 60)
+    st.markdown("### ⏱️ Racha(delta.total_seconds() // 60)
         tiempo = f"{detalle.years}a {detalle.months}m {detalle.days}d {detalle.hours}h {detalle.minutes}m {detalle.seconds}s"
         if mostrar:
+            nombre_dia_completo = ultimo.strftime("%A")
             st.metric("Duración", f"{minutos:,} min", tiempo)
-            st.caption(f"🔴 Última recaída: {ultimo.strftime('%Y-%m-%d %H:%M:%S')}")
+            st.caption(f"🔴 Última recaída: {ultimo.strftime('%Y-%m-%d %H:%M:%S')} ({nombre_dia_completo})")
             if nombre_evento == "La Iniciativa Aquella":
                 registros = list(coleccion_eventos.find({"evento": nombre_evento}).sort("fecha_hora", -1))
                 record = max([(registros[i - 1]["fecha_hora"] - registros[i]["fecha_hora"])
@@ -161,23 +137,7 @@ def mostrar_racha(nombre_evento, emoji):
                 meta_21 = timedelta(days=21)
                 if delta > umbral:
                     st.success("✅ Superaste la zona crítica de las 72 horas.")
-                if delta > meta_5:
-                    st.success("🌱 ¡Sostenés 5 días! Se está instalando un nuevo hábito.")
-                if delta > meta_21:
-                    st.success("🏗️ 21 días: ya creaste una estructura sólida.")
-                if delta < umbral:
-                    meta_actual = umbral
-                    label_meta = "zona crítica (3 días)"
-                elif delta < meta_5:
-                    meta_actual = meta_5
-                    label_meta = "meta base (5 días)"
-                elif delta < meta_21:
-                    meta_actual = meta_21
-                    label_meta = "meta sólida (21 días)"
-                elif delta < record:
-                    meta_actual = record
-                    label_meta = "tu récord"
-                else:
+                if delta > meta:
                     meta_actual = delta
                     label_meta = "¡Nuevo récord!"
                 progreso_visual = min(delta.total_seconds() / meta_actual.total_seconds(), 1.0)
@@ -193,13 +153,16 @@ def mostrar_racha(nombre_evento, emoji):
         st.metric("Duración", "0 min")
         st.caption("0a 0m 0d 0h 0m 0s")
 
-# Obtener registros para tabla, con formato limpio omitiendo ceros
+# Obtener registros para tabla, con iniciales de día
 def obtener_registros(nombre_evento):
     eventos = list(coleccion_eventos.find({"evento": nombre_evento}).sort("fecha_hora", -1))
     filas = []
+    dias_tres_letras = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"]
     total = len(eventos)
     for i, e in enumerate(eventos):
         fecha = e["fecha_hora"].astimezone(colombia)
+        dia_semana_idx = fecha.weekday()
+        dia_tres_letras = dias_tres_letras[dia_semana_idx]
         anterior = eventos[i + 1]["fecha_hora"].astimezone(colombia) if i + 1 < len(eventos) else None
         diferencia = ""
         if anterior:
@@ -212,26 +175,7 @@ def obtener_registros(nombre_evento):
             if detalle.days:
                 partes.append(f"{detalle.days}d")
             if detalle.hours:
-                partes.append(f"{detalle.hours}h")
-            if detalle.minutes:
-                partes.append(f"{detalle.minutes}m")
-            diferencia = " ".join(partes)
-        filas.append({
-            "N°": total - i,
-            "Fecha": fecha.strftime("%Y-%m-%d"),
-            "Hora": fecha.strftime("%H:%M"),
-            "Sin recaída": diferencia
-        })
-    return pd.DataFrame(filas)
-
-# Obtener reflexiones para historial
-def obtener_reflexiones():
-    docs = list(coleccion_reflexiones.find({}).sort("fecha_hora", -1))
-    rows = []
-    for d in docs:
-        fecha = d["fecha_hora"].astimezone(colombia)
-        emojis = " ".join([e["emoji"] for e in d.get("emociones", [])])
-        emociones = ", ".join([e["nombre"] for e in d.get("emociones", [])])
+                partes.append(f"{([e["nombre"] for e in d.get("emociones", [])])
         codigo_cat = d.get("categoria_categorial", "")
         info_cat = sistema_categorial.get(codigo_cat, {
             "categoria": "Sin categoría",
@@ -290,22 +234,16 @@ if opcion in [evento_a, evento_b]:
     st.header(f"📍 Registro de evento")
     fecha_hora_evento = datetime.now(colombia)
 
-    if st.button("☠️ ¿Registrar?"):
-        registrar_evento(opcion, fecha_hora_evento)
-        st.success(f"Evento '{seleccion}' registrado a las {fecha_hora_evento.strftime('%H:%M:%S')}")
-        st.rerun()
-
-    mostrar_racha(opcion, seleccion.split()[0])
+    if st(op, seleccion.split()[0])
 
 # Módulo Reflexión
 elif opcion == "reflexion":
     st.header("🧠 Registrar reflexión")
 
-    if st.session_state.get("reset_reflexion", False):
-        st.session_state["texto_reflexion"] = ""
-        st.session_state["emociones_reflexion"] = []
-        st.session_state["reset_reflexion"] = False
-        st.rerun()
+    st.session_state.get("reset_reflexion", False):
+        st.session_state[".sessionemociones_reflexion"] = []
+        st.session_state["reset_reflexion"] =
+       .rerun()
 
     ultima = coleccion_reflexiones.find_one({}, sort=[("fecha_hora", -1)])
     if ultima:
@@ -343,9 +281,7 @@ elif opcion == "historial":
 
     with tabs[0]:
         st.subheader("📍 Historial de reflexiones")
-        df_r = obtener_reflexiones()
-        for i, row in df_r.iterrows():
-            with st.expander(f"{row['Fecha']} {row['Emojis']} {row['Hora']}"):
+        df st.expander(f"{row['Fecha']} {row['Emojis']} {row['Hora']}"):
                 st.write(row['Reflexión'])
                 st.markdown("---")
                 st.write(f"**Estados de ánimo:** {row['Emociones']}")
