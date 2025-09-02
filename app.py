@@ -7,11 +7,9 @@ from dateutil.relativedelta import relativedelta
 from streamlit_autorefresh import st_autorefresh
 from openai import OpenAI
 
-# Configuración página y zona horaria
 st.set_page_config(page_title="Reinicia", layout="centered")
 colombia = pytz.timezone("America/Bogota")
 
-# Diccionarios globales para días
 dias_semana_es = {
     "Monday": "Lunes",
     "Tuesday": "Martes",
@@ -32,7 +30,6 @@ dias_semana_3letras = {
     6: "Dom"
 }
 
-# Conexión a MongoDB
 client = MongoClient(st.secrets["mongo_uri"])
 db = client["registro_bucle"]
 coleccion_eventos = db["eventos"]
@@ -40,10 +37,8 @@ coleccion_reflexiones = db["reflexiones"]
 coleccion_hitos = db["hitos"]
 coleccion_visual = db["log_visual"]
 
-# Cliente OpenAI
 openai_client = OpenAI(api_key=st.secrets["openai_api_key"])
 
-# Eventos
 evento_a = "La Iniciativa Aquella"
 evento_b = "La Iniciativa de Pago"
 eventos = {
@@ -53,7 +48,6 @@ eventos = {
     "💸": evento_b,
 }
 
-# Sistema categorial para reflexiones
 sistema_categorial = {
     "1.1": {"categoria": "Dinámicas cotidianas", "subcategoria": "Organización del tiempo",
             "descriptor": "Manejo de rutinas y distribución del día",
@@ -93,7 +87,6 @@ sistema_categorial = {
             "observable": "Expresiones de libertad, vergüenza, culpa, normalización; uso de términos religiosos o morales."},
 }
 
-# Inicializar últimos eventos en session_state
 for key in [evento_a, evento_b]:
     if key not in st.session_state:
         evento = coleccion_eventos.find_one({"evento": key}, sort=[("fecha_hora", -1)])
@@ -176,33 +169,32 @@ def obtener_registros(nombre_evento):
         })
     return pd.DataFrame(filas)
 
-def contar_recaidas_dia_actual(nombre_evento):
-    df = obtener_registros(nombre_evento)
-    dia_semana_actual = dias_semana_3letras[datetime.now(colombia).weekday()]
-    recaidas = df[df["Día"] == dia_semana_actual].shape[0]
-    return recaidas
-
-def obtener_estadisticas_evento(nombre_evento):
-    eventos_lista = list(coleccion_eventos.find({"evento": nombre_evento}))
-    if not eventos_lista:
-        return None
-    dia_semana_actual = datetime.now(colombia).weekday()
-    eventos_filtrados = [e for e in eventos_lista if e["fecha_hora"].astimezone(colombia).weekday() == dia_semana_actual]
-    if not eventos_filtrados:
-        return None
-    fechas = [e["fecha_hora"].astimezone(colombia) for e in eventos_filtrados]
-    hoy = datetime.now(colombia).strftime('%A')
-    hoy_es = dias_semana_es.get(hoy, hoy)
-    recaidas = len(fechas)
-    horas_minuto = [(f.hour, f.minute) for f in fechas]
-    if recaidas == 1:
-        h, m = horas_minuto[0]
-        hora_texto = f"Hora: {h:02d}:{m:02d}"
-    else:
-        min_h, min_m = min(horas_minuto)
-        max_h, max_m = max(horas_minuto)
-        hora_texto = f"Rango horario de la hora {min_h:02d}:{min_m:02d} a la hora {max_h:02d}:{max_m:02d}"
-    return hoy_es, recaidas, hora_texto
+def obtener_reflexiones():
+    docs = list(coleccion_reflexiones.find({}).sort("fecha_hora", -1))
+    rows = []
+    for d in docs:
+        fecha = d["fecha_hora"].astimezone(colombia)
+        emojis = " ".join([e["emoji"] for e in d.get("emociones", [])])
+        emociones = ", ".join([e["nombre"] for e in d.get("emociones", [])])
+        codigo_cat = d.get("categoria_categorial", "")
+        info_cat = sistema_categorial.get(codigo_cat, {
+            "categoria": "Sin categoría",
+            "subcategoria": "",
+            "descriptor": "",
+            "observable": ""
+        })
+        rows.append({
+            "Fecha": fecha.strftime("%d-%m-%y"),
+            "Hora": fecha.strftime("%H:%M"),
+            "Emojis": emojis,
+            "Emociones": emociones,
+            "Categoría": info_cat["categoria"],
+            "Subcategoría": info_cat["subcategoria"],
+            "Descriptor": info_cat.get("descriptor", ""),
+            "Observable": info_cat.get("observable", ""),
+            "Reflexión": d.get("reflexion", "")
+        })
+    return pd.DataFrame(rows)
 
 def mostrar_racha(nombre_evento, emoji):
     clave_estado = f"mostrar_racha_{nombre_evento}"
@@ -269,7 +261,6 @@ def mostrar_racha(nombre_evento, emoji):
         st.metric("Duración", "0 min")
         st.caption("0a 0m 0d 0h 0m 0s")
 
-# Mostrar tabla eventos con opción ocultar y total con punticos mientras esté oculta
 def mostrar_tabla_eventos(nombre_evento):
     st.subheader(f"📍 Registros")
     df = obtener_registros(nombre_evento)
@@ -295,7 +286,6 @@ def mostrar_tabla_eventos(nombre_evento):
         st.dataframe(df_oculto, use_container_width=True, hide_index=True)
         st.caption("🔒 Registros ocultos. Activá la casilla para visualizar.")
 
-# Interfaz Principal
 st.title("Reinicia")
 seleccion = st.selectbox("Seleccioná qué registrar o consultar:", list(eventos.keys()))
 opcion = eventos[seleccion]
@@ -306,8 +296,8 @@ if opcion in [evento_a, evento_b]:
     df_dia = df_registros[df_registros["Día"] == dias_semana_3letras[datetime.now(colombia).weekday()]]
     recaidas_hoy = len(df_dia)
     if recaidas_hoy == 1:
-        hora_min = hora_max = df_dia.iloc[0]["Hora"]
-        st.error(f"❗ Atención: hay 1 recaída registrada para un día como hoy {dia_semana_hoy} a las {hora_min}.")
+        hora_unica = df_dia.iloc[0]["Hora"]
+        st.error(f"❗ Atención: hay 1 recaída registrada para un día como hoy {dia_semana_hoy} a las {hora_unica}.")
     elif recaidas_hoy > 1:
         hora_min = df_dia["Hora"].min()
         hora_max = df_dia["Hora"].max()
@@ -332,7 +322,7 @@ if opcion in [evento_a, evento_b]:
     if st.button("☠️ ¿Registrar?"):
         registrar_evento(opcion, fecha_hora_evento)
         st.success(f"Evento '{seleccion}' registrado a las {fecha_hora_evento.strftime('%H:%M:%S')}")
-        st.experimental_rerun()
+        st.rerun()
 
     mostrar_racha(opcion, seleccion.split()[0])
 
@@ -343,7 +333,7 @@ elif opcion == "reflexion":
         st.session_state["texto_reflexion"] = ""
         st.session_state["emociones_reflexion"] = []
         st.session_state["reset_reflexion"] = False
-        st.experimental_rerun()
+        st.rerun()
 
     ultima = coleccion_reflexiones.find_one({}, sort=[("fecha_hora", -1)])
     if ultima:
@@ -372,7 +362,7 @@ elif opcion == "reflexion":
             categoria_asignada = guardar_reflexion(fecha_hora_reflexion, emociones, texto_reflexion)
             st.success(f"Reflexión guardada con categoría: {categoria_asignada}")
             st.session_state["reset_reflexion"] = True
-            st.experimental_rerun()
+            st.rerun()
 
 elif opcion == "historial":
     st.header("📑 Historial completo")
@@ -398,3 +388,28 @@ elif opcion == "historial":
 
     with tabs[2]:
         mostrar_tabla_eventos(evento_b)
+
+def mostrar_tabla_eventos(nombre_evento):
+    st.subheader(f"📍 Registros")
+    df = obtener_registros(nombre_evento)
+    total_registros = len(df)
+
+    def ocultar_numero_con_punticos(numero):
+        return "•" * len(str(numero))
+
+    mostrar = st.checkbox("Ver/Ocultar registros", value=False, key=f"mostrar_{nombre_evento}")
+
+    total_mostrar = str(total_registros) if mostrar else ocultar_numero_con_punticos(total_registros)
+    st.markdown(f"**Total de registros:** {total_mostrar}")
+
+    if mostrar:
+        st.dataframe(df, use_container_width=True, hide_index=True)
+    else:
+        df_oculto = pd.DataFrame({
+            "Día": ["•••"] * total_registros,
+            "Fecha": ["••-••-••"] * total_registros,
+            "Hora": ["••:••"] * total_registros,
+            "Sin recaída": ["••a ••m ••d ••h ••m"] * total_registros
+        })
+        st.dataframe(df_oculto, use_container_width=True, hide_index=True)
+        st.caption("🔒 Registros ocultos. Activá la casilla para visualizar.")
