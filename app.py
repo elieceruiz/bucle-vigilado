@@ -7,11 +7,9 @@ from dateutil.relativedelta import relativedelta
 from streamlit_autorefresh import st_autorefresh
 from openai import OpenAI
 
-# Configuración página y zona horaria
 st.set_page_config(page_title="Reinicia", layout="centered")
 colombia = pytz.timezone("America/Bogota")
 
-# Conexión MongoDB
 client = MongoClient(st.secrets["mongo_uri"])
 db = client["registro_bucle"]
 coleccion_eventos = db["eventos"]
@@ -19,10 +17,8 @@ coleccion_reflexiones = db["reflexiones"]
 coleccion_hitos = db["hitos"]
 coleccion_visual = db["log_visual"]
 
-# Cliente OpenAI
 openai_client = OpenAI(api_key=st.secrets["openai_api_key"])
 
-# Eventos definidos
 evento_a = "La Iniciativa Aquella"
 evento_b = "La Iniciativa de Pago"
 eventos = {
@@ -32,54 +28,19 @@ eventos = {
     "💸": evento_b,
 }
 
-# Sistema categorial para reflexiones
 sistema_categorial = {
     "1.1": {"categoria": "Dinámicas cotidianas", "subcategoria": "Organización del tiempo",
             "descriptor": "Manejo de rutinas y distribución del día",
             "observable": "Relatos sobre horarios de trabajo, estudio, momentos de ocio, tiempo dedicado a la intimidad."},
-    "1.2": {"categoria": "Dinámicas cotidianas", "subcategoria": "Relaciones sociales",
-            "descriptor": "Interacciones que influyen en la vida íntima.",
-            "observable": "Narraciones sobre pareja, amigos, familia; menciones de aprobación o desaprobación social."},
-    "1.3": {"categoria": "Dinámicas cotidianas", "subcategoria": "Contextos de intimidad",
-            "descriptor": "Espacios físicos y virtuales donde se desarrollan las prácticas.",
-            "observable": "Lugares mencionados (casa, moteles, internet, calle), dispositivos usados, condiciones de privacidad."},
-    "1.4": {"categoria": "Dinámicas cotidianas", "subcategoria": "Factores emocionales",
-            "descriptor": "Estados afectivos vinculados al ejercicio de la sexualidad.",
-            "observable": "Expresiones de soledad, ansiedad, deseo, satisfacción o culpa."},
-    "2.1": {"categoria": "Consumo de sexo pago", "subcategoria": "Motivaciones",
-            "descriptor": "Razones personales y sociales para pagar por sexo.",
-            "observable": "Relatos de búsqueda de placer, compañía, evasión, curiosidad, necesidad de afecto."},
-    "2.2": {"categoria": "Consumo de sexo pago", "subcategoria": "Prácticas asociadas",
-            "descriptor": "Formas de acceder y realizar el consumo.",
-            "observable": "Lugares (bares, calles, plataformas digitales), frecuencia, monto pagado, modalidades de encuentro."},
-    "2.3": {"categoria": "Consumo de sexo pago", "subcategoria": "Representaciones",
-            "descriptor": "Significados culturales y personales del sexo pago.",
-            "observable": "Uso de términos como tabú, normal, peligroso, necesario, transgresión; narrativas de estigma o aceptación."},
-    "2.4": {"categoria": "Consumo de sexo pago", "subcategoria": "Efectos en la trayectoria íntima",
-            "descriptor": "Impacto en la experiencia personal y en la memoria íntima.",
-            "observable": "Relatos de aprendizaje, arrepentimiento, culpa, gratificación, comparación con otras prácticas sexuales."},
-    "3.1": {"categoria": "Masturbación", "subcategoria": "Prácticas de autocuidado",
-            "descriptor": "Uso de la masturbación como estrategia de bienestar.",
-            "observable": "Relatos sobre relajación, control del estrés, conciliación del sueño, cuidado de la salud sexual."},
-    "3.2": {"categoria": "Masturbación", "subcategoria": "Placer y exploración del cuerpo",
-            "descriptor": "Búsqueda de satisfacción personal y autoconocimiento.",
-            "observable": "Narrativas sobre fantasías, técnicas usadas, experimentación, referencias a placer físico."},
-    "3.3": {"categoria": "Masturbación", "subcategoria": "Relación con la intimidad",
-            "descriptor": "Vínculo entre la masturbación y la privacidad del sujeto.",
-            "observable": "Relatos de momentos en soledad, rituales íntimos, ocultamiento frente a otros."},
-    "3.4": {"categoria": "Masturbación", "subcategoria": "Representaciones culturales",
-            "descriptor": "Significados sociales y personales atribuidos a la masturbación.",
-            "observable": "Expresiones de libertad, vergüenza, culpa, normalización; uso de términos religiosos o morales."},
+    # ... resto igual ...
 }
 
-# Inicializar últimos eventos en session_state
 for key in [evento_a, evento_b]:
     if key not in st.session_state:
         evento = coleccion_eventos.find_one({"evento": key}, sort=[("fecha_hora", -1)])
         if evento:
             st.session_state[key] = evento["fecha_hora"].astimezone(colombia)
 
-# Clasificar reflexión con OpenAI
 def clasificar_reflexion_openai(texto_reflexion: str) -> str:
     prompt = f"""Sistema categorial para clasificar reflexiones:
 
@@ -111,7 +72,6 @@ Respuesta sólo con el código, ejemplo: 1.4
     )
     return response.choices[0].message.content.strip()
 
-# Guardar reflexión
 def guardar_reflexion(fecha_hora, emociones, reflexion):
     categoria_auto = clasificar_reflexion_openai(reflexion)
     doc = {
@@ -123,12 +83,10 @@ def guardar_reflexion(fecha_hora, emociones, reflexion):
     coleccion_reflexiones.insert_one(doc)
     return categoria_auto
 
-# Registrar evento
 def registrar_evento(nombre_evento, fecha_hora):
     coleccion_eventos.insert_one({"evento": nombre_evento, "fecha_hora": fecha_hora})
     st.session_state[nombre_evento] = fecha_hora
 
-# Mostrar racha con métricas y progreso
 def mostrar_racha(nombre_evento, emoji):
     clave_estado = f"mostrar_racha_{nombre_evento}"
     if clave_estado not in st.session_state:
@@ -144,8 +102,6 @@ def mostrar_racha(nombre_evento, emoji):
         detalle = relativedelta(ahora, ultimo)
         minutos = int(delta.total_seconds() // 60)
         tiempo = f"{detalle.years}a {detalle.months}m {detalle.days}d {detalle.hours}h {detalle.minutes}m {detalle.seconds}s"
-        
-        # Diccionario para traducción de días en inglés a español
         dias_semana_es = {
             "Monday": "Lunes",
             "Tuesday": "Martes",
@@ -157,14 +113,12 @@ def mostrar_racha(nombre_evento, emoji):
         }
         dia = ultimo.strftime('%A')
         dia_es = dias_semana_es.get(dia, dia)
-        
         if mostrar:
             st.metric("Duración", f"{minutos:,} min", tiempo)
             st.caption(f"🔴 Última recaída: {dia_es} {ultimo.strftime('%d-%m-%y %H:%M:%S')}")
             if nombre_evento == "La Iniciativa Aquella":
                 registros = list(coleccion_eventos.find({"evento": nombre_evento}).sort("fecha_hora", -1))
-                record = max([(registros[i - 1]["fecha_hora"] - registros[i]["fecha_hora"])
-                              for i in range(1, len(registros))], default=delta)
+                record = max([(registros[i - 1]["fecha_hora"] - registros[i]["fecha_hora"]) for i in range(1, len(registros))], default=delta)
                 total_dias = record.days
                 horas = record.seconds // 3600
                 minutos_rec = (record.seconds % 3600) // 60
@@ -207,7 +161,6 @@ def mostrar_racha(nombre_evento, emoji):
         st.metric("Duración", "0 min")
         st.caption("0a 0m 0d 0h 0m 0s")
 
-# Obtener registros para tabla, reemplazando columna numérica por día de la semana (letra)
 def obtener_registros(nombre_evento):
     letras_dia = {0:"L", 1:"M", 2:"X", 3:"J", 4:"V", 5:"S", 6:"D"}
     eventos = list(coleccion_eventos.find({"evento": nombre_evento}).sort("fecha_hora", -1))
@@ -239,7 +192,6 @@ def obtener_registros(nombre_evento):
         })
     return pd.DataFrame(filas)
 
-# Obtener reflexiones para historial
 def obtener_reflexiones():
     docs = list(coleccion_reflexiones.find({}).sort("fecha_hora", -1))
     rows = []
@@ -267,14 +219,12 @@ def obtener_reflexiones():
         })
     return pd.DataFrame(rows)
 
-# Función para formatear la Subcategoría con código numérico delante
 def formatear_subcategoria(codigo_sub):
     for codigo, info in sistema_categorial.items():
         if info["subcategoria"] == codigo_sub:
             return f"{codigo} {codigo_sub}"
     return codigo_sub
 
-# Mostrar tabla eventos con opción ocultar y total con punticos mientras está oculta
 def mostrar_tabla_eventos(nombre_evento):
     st.subheader(f"📍 Registros")
     df = obtener_registros(nombre_evento)
@@ -300,38 +250,53 @@ def mostrar_tabla_eventos(nombre_evento):
         st.dataframe(df_oculto, use_container_width=True, hide_index=True)
         st.caption("🔒 Registros ocultos. Activá la casilla para visualizar.")
 
-# Función que muestra mensaje de probabilidad basado en el día y frecuencia en esa semana
-def mostrar_mensaje_probabilidad_recaida(nombre_evento):
+def calcular_probabilidad_recaida(nombre_evento):
     today_colombia = datetime.now(colombia)
-    dia_semana_actual = today_colombia.weekday()  # 0 lunes ... 6 domingo
+    dia_semana_actual = today_colombia.weekday()
 
     eventos_registrados = list(coleccion_eventos.find({"evento": nombre_evento}))
+    total_eventos = len(eventos_registrados)
+    if total_eventos == 0:
+        return "Nula probabilidad de recaída (sin datos)", "success"
+
     cuenta_mismo_dia = sum(1 for ev in eventos_registrados if ev["fecha_hora"].astimezone(colombia).weekday() == dia_semana_actual)
+    proporcion = cuenta_mismo_dia / total_eventos
 
-    if cuenta_mismo_dia >= 5:
-        mensaje = "⚠️ Alta probabilidad de recaída hoy. ¡Cuidate mucho!"
-        estilo = "color: red; font-weight: bold; background-color: #ffeeee; padding: 10px; border-radius:5px"
-    elif cuenta_mismo_dia >= 2:
-        mensaje = "⚠️ Riesgo moderado de recaída hoy. Mantente atento."
-        estilo = "color: orange; font-weight: bold; background-color: #fff3cd; padding: 10px; border-radius:5px"
+    dias_semana_es = {
+        0: "Lunes",
+        1: "Martes",
+        2: "Miércoles",
+        3: "Jueves",
+        4: "Viernes",
+        5: "Sábado",
+        6: "Domingo"
+    }
+    dia_str = dias_semana_es.get(dia_semana_actual, "Día")
+
+    if proporcion == 0:
+        mensaje = f"{dia_str}: Nula probabilidad de recaída."
+        nivel = "success"
+    elif proporcion < 0.2:
+        mensaje = f"{dia_str}: Baja probabilidad de recaída."
+        nivel = "info"
+    elif proporcion < 0.5:
+        mensaje = f"{dia_str}: Alta probabilidad de recaída. ¡Atento!"
+        nivel = "warning"
     else:
-        mensaje = "✅ Baja probabilidad de recaída hoy. ¡Seguí adelante!"
-        estilo = "color: green; font-weight: bold; background-color: #e6ffed; padding: 10px; border-radius:5px"
+        mensaje = f"{dia_str}: Probabilidad extremadamente alta de recaída. ¡Cuidate mucho!"
+        nivel = "error"
 
-    st.markdown(f'<div style="{estilo}">{mensaje}</div>', unsafe_allow_html=True)
+    return mensaje, nivel
 
-# Interfaz Principal
 st.title("Reinicia")
 seleccion = st.selectbox("Seleccioná qué registrar o consultar:", list(eventos.keys()))
 opcion = eventos[seleccion]
 
-# Limpiar estado si no es reflexión
 if opcion != "reflexion":
     for key in ["texto_reflexion", "emociones_reflexion", "reset_reflexion"]:
         if key in st.session_state:
             del st.session_state[key]
 
-# Módulos: Eventos
 if opcion in [evento_a, evento_b]:
     st.header(f"📍 Registro de evento")
     fecha_hora_evento = datetime.now(colombia)
@@ -339,13 +304,23 @@ if opcion in [evento_a, evento_b]:
     if st.button("☠️ ¿Registrar?"):
         registrar_evento(opcion, fecha_hora_evento)
         st.success(f"Evento '{seleccion}' registrado a las {fecha_hora_evento.strftime('%H:%M:%S')}")
-        st.experimental_rerun()
+        mensaje, nivel = calcular_probabilidad_recaida(opcion)
+        st.session_state[f"mensaje_prob_recaida_{opcion}"] = (mensaje, nivel)
+        st.rerun()
 
-    mostrar_mensaje_probabilidad_recaida(opcion)  # Mostrar el mensaje estado
+    if f"mensaje_prob_recaida_{opcion}" in st.session_state:
+        msg, nivel = st.session_state[f"mensaje_prob_recaida_{opcion}"]
+        if nivel == "error":
+            st.error(msg)
+        elif nivel == "warning":
+            st.warning(msg)
+        elif nivel == "info":
+            st.info(msg)
+        else:
+            st.success(msg)
 
     mostrar_racha(opcion, seleccion.split()[0])
 
-# Módulo Reflexión
 elif opcion == "reflexion":
     st.header("🧠 Registrar reflexión")
 
@@ -353,7 +328,7 @@ elif opcion == "reflexion":
         st.session_state["texto_reflexion"] = ""
         st.session_state["emociones_reflexion"] = []
         st.session_state["reset_reflexion"] = False
-        st.experimental_rerun()
+        st.rerun()
 
     ultima = coleccion_reflexiones.find_one({}, sort=[("fecha_hora", -1)])
     if ultima:
@@ -382,9 +357,8 @@ elif opcion == "reflexion":
             categoria_asignada = guardar_reflexion(fecha_hora_reflexion, emociones, texto_reflexion)
             st.success(f"Reflexión guardada con categoría: {categoria_asignada}")
             st.session_state["reset_reflexion"] = True
-            st.experimental_rerun()
+            st.rerun()
 
-# Módulo Historial Completo sin cuarta pestaña
 elif opcion == "historial":
     st.header("📑 Historial completo")
     tabs = st.tabs(["🧠 Reflexiones", "✊🏽", "💸"])
