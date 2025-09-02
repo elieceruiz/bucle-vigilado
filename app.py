@@ -6,23 +6,22 @@ import pandas as pd
 from dateutil.relativedelta import relativedelta
 from streamlit_autorefresh import st_autorefresh
 from openai import OpenAI
+from collections import Counter
 
-# Configuración página y zona horaria
+# Configuración zona horaria y Streamlit
 st.set_page_config(page_title="Reinicia", layout="centered")
 colombia = pytz.timezone("America/Bogota")
 
-# Conexión MongoDB
+# Conexion a MongoDB
 client = MongoClient(st.secrets["mongo_uri"])
 db = client["registro_bucle"]
 coleccion_eventos = db["eventos"]
 coleccion_reflexiones = db["reflexiones"]
-coleccion_hitos = db["hitos"]
-coleccion_visual = db["log_visual"]
 
 # Cliente OpenAI
 openai_client = OpenAI(api_key=st.secrets["openai_api_key"])
 
-# Eventos definidos
+# Definicion de eventos
 evento_a = "La Iniciativa Aquella"
 evento_b = "La Iniciativa de Pago"
 eventos = {
@@ -32,7 +31,7 @@ eventos = {
     "💸": evento_b,
 }
 
-# Sistema categorial para reflexiones
+# Sistema categorial completo sin omisiones
 sistema_categorial = {
     "1.1": {"categoria": "Dinámicas cotidianas", "subcategoria": "Organización del tiempo",
             "descriptor": "Manejo de rutinas y distribución del día",
@@ -72,14 +71,12 @@ sistema_categorial = {
             "observable": "Expresiones de libertad, vergüenza, culpa, normalización; uso de términos religiosos o morales."},
 }
 
-# Inicializar últimos eventos en session_state
 for key in [evento_a, evento_b]:
     if key not in st.session_state:
         evento = coleccion_eventos.find_one({"evento": key}, sort=[("fecha_hora", -1)])
         if evento:
             st.session_state[key] = evento["fecha_hora"].astimezone(colombia)
 
-# Clasificar reflexión con OpenAI
 def clasificar_reflexion_openai(texto_reflexion: str) -> str:
     prompt = f"""Sistema categorial para clasificar reflexiones:
 
@@ -111,7 +108,6 @@ Respuesta sólo con el código, ejemplo: 1.4
     )
     return response.choices[0].message.content.strip()
 
-# Guardar reflexión
 def guardar_reflexion(fecha_hora, emociones, reflexion):
     categoria_auto = clasificar_reflexion_openai(reflexion)
     doc = {
@@ -123,12 +119,12 @@ def guardar_reflexion(fecha_hora, emociones, reflexion):
     coleccion_reflexiones.insert_one(doc)
     return categoria_auto
 
-# Registrar evento
 def registrar_evento(nombre_evento, fecha_hora):
-    coleccion_eventos.insert_one({"evento": nombre_evento, "fecha_hora": fecha_hora})
+    dia_local = fecha_hora.astimezone(colombia)
+    dia_semana = dia_local.weekday()  # 0=lunes,...6=domingo
+    coleccion_eventos.insert_one({"evento": nombre_evento, "fecha_hora": fecha_hora, "dia_semana": dia_semana})
     st.session_state[nombre_evento] = fecha_hora
 
-# Mostrar racha con métricas y progreso
 def mostrar_racha(nombre_evento, emoji):
     clave_estado = f"mostrar_racha_{nombre_evento}"
     if clave_estado not in st.session_state:
@@ -144,8 +140,6 @@ def mostrar_racha(nombre_evento, emoji):
         detalle = relativedelta(ahora, ultimo)
         minutos = int(delta.total_seconds() // 60)
         tiempo = f"{detalle.years}a {detalle.months}m {detalle.days}d {detalle.hours}h {detalle.minutes}m {detalle.seconds}s"
-        
-        # Diccionario para traducción de días en inglés a español
         dias_semana_es = {
             "Monday": "Lunes",
             "Tuesday": "Martes",
@@ -157,14 +151,12 @@ def mostrar_racha(nombre_evento, emoji):
         }
         dia = ultimo.strftime('%A')
         dia_es = dias_semana_es.get(dia, dia)
-        
         if mostrar:
             st.metric("Duración", f"{minutos:,} min", tiempo)
             st.caption(f"🔴 Última recaída: {dia_es} {ultimo.strftime('%d-%m-%y %H:%M:%S')}")
-            if nombre_evento == "La Iniciativa Aquella":
+            if nombre_evento == evento_a:
                 registros = list(coleccion_eventos.find({"evento": nombre_evento}).sort("fecha_hora", -1))
-                record = max([(registros[i - 1]["fecha_hora"] - registros[i]["fecha_hora"])
-                              for i in range(1, len(registros))], default=delta)
+                record = max([(registros[i - 1]["fecha_hora"] - registros[i]["fecha_hora"]) for i in range(1, len(registros))], default=delta)
                 total_dias = record.days
                 horas = record.seconds // 3600
                 minutos_rec = (record.seconds % 3600) // 60
@@ -207,9 +199,8 @@ def mostrar_racha(nombre_evento, emoji):
         st.metric("Duración", "0 min")
         st.caption("0a 0m 0d 0h 0m 0s")
 
-# Obtener registros para tabla, reemplazando columna numérica por día de la semana (letra)
 def obtener_registros(nombre_evento):
-    letras_dia = {0:"L", 1:"M", 2:"X", 3:"J", 4:"V", 5:"S", 6:"D"}
+    letras_dia = {0: "L", 1: "M", 2: "X", 3: "J", 4: "V", 5: "S", 6: "D"}
     eventos = list(coleccion_eventos.find({"evento": nombre_evento}).sort("fecha_hora", -1))
     filas = []
     for i, e in enumerate(eventos):
@@ -239,7 +230,6 @@ def obtener_registros(nombre_evento):
         })
     return pd.DataFrame(filas)
 
-# Obtener reflexiones para historial
 def obtener_reflexiones():
     docs = list(coleccion_reflexiones.find({}).sort("fecha_hora", -1))
     rows = []
@@ -267,14 +257,6 @@ def obtener_reflexiones():
         })
     return pd.DataFrame(rows)
 
-# Función para formatear la Subcategoría con código numérico delante
-def formatear_subcategoria(codigo_sub):
-    for codigo, info in sistema_categorial.items():
-        if info["subcategoria"] == codigo_sub:
-            return f"{codigo} {codigo_sub}"
-    return codigo_sub
-
-# Mostrar tabla eventos con opción ocultar y total con punticos mientras esté oculta
 def mostrar_tabla_eventos(nombre_evento):
     st.subheader(f"📍 Registros")
     df = obtener_registros(nombre_evento)
@@ -300,18 +282,25 @@ def mostrar_tabla_eventos(nombre_evento):
         st.dataframe(df_oculto, use_container_width=True, hide_index=True)
         st.caption("🔒 Registros ocultos. Activá la casilla para visualizar.")
 
-# Interfaz Principal
+def obtener_horas_de_tabla_historial(df, col_fecha="Fecha", col_hora="Hora"):
+    df["datetime"] = pd.to_datetime(df[col_fecha] + " " + df[col_hora], format="%d-%m-%y %H:%M")
+    df["datetime"] = df["datetime"].dt.tz_localize(colombia.zone, ambiguous='NaT', nonexistent='shift_forward')
+    dia_actual = datetime.now(colombia).weekday()
+    df_filtrado = df[df["datetime"].dt.weekday == dia_actual]
+    if df_filtrado.empty:
+        return None
+    horas = sorted(df_filtrado[col_hora].tolist())
+    return horas
+
 st.title("Reinicia")
 seleccion = st.selectbox("Seleccioná qué registrar o consultar:", list(eventos.keys()))
 opcion = eventos[seleccion]
 
-# Limpiar estado si no es reflexión
 if opcion != "reflexion":
     for key in ["texto_reflexion", "emociones_reflexion", "reset_reflexion"]:
         if key in st.session_state:
             del st.session_state[key]
 
-# Módulos: Eventos
 if opcion in [evento_a, evento_b]:
     st.header(f"📍 Registro de evento")
     fecha_hora_evento = datetime.now(colombia)
@@ -323,7 +312,14 @@ if opcion in [evento_a, evento_b]:
 
     mostrar_racha(opcion, seleccion.split()[0])
 
-# Módulo Reflexión
+    # Obtener las horas ordenadas del día de hoy para el evento y mostrar mensaje
+    df_historial_eventos = obtener_registros(opcion)
+    horas = obtener_horas_de_tabla_historial(df_historial_eventos)
+    if horas:
+        st.info("Históricamente tus eventos en este día ocurren a las horas (ordenadas): " + ", ".join(horas))
+    else:
+        st.info("No hay registros históricos para este día en este evento.")
+
 elif opcion == "reflexion":
     st.header("🧠 Registrar reflexión")
 
@@ -361,8 +357,6 @@ elif opcion == "reflexion":
             st.success(f"Reflexión guardada con categoría: {categoria_asignada}")
             st.session_state["reset_reflexion"] = True
             st.experimental_rerun()
-
-# Módulo Historial Completo sin cuarta pestaña
 elif opcion == "historial":
     st.header("📑 Historial completo")
     tabs = st.tabs(["🧠 Reflexiones", "✊🏽", "💸"])
@@ -384,6 +378,5 @@ elif opcion == "historial":
 
     with tabs[1]:
         mostrar_tabla_eventos(evento_a)
-
     with tabs[2]:
         mostrar_tabla_eventos(evento_b)
