@@ -4,15 +4,15 @@ from pymongo import MongoClient
 import pytz
 import pandas as pd
 from dateutil.relativedelta import relativedelta
+from streamlit_autorefresh import st_autorefresh
 from openai import OpenAI
-from math import sqrt
 from collections import Counter
 
-# Configuración página y zona horaria para Colombia
+# Configuración página y zona horaria
 st.set_page_config(page_title="Reinicia", layout="centered")
 colombia = pytz.timezone("America/Bogota")
 
-# Conexión a MongoDB usando st.secrets para seguridad
+# Conexión MongoDB
 client = MongoClient(st.secrets["mongo_uri"])
 db = client["registro_bucle"]
 coleccion_eventos = db["eventos"]
@@ -20,10 +20,10 @@ coleccion_reflexiones = db["reflexiones"]
 coleccion_hitos = db["hitos"]
 coleccion_visual = db["log_visual"]
 
-# Cliente OpenAI para clasificación automática de reflexiones
+# Cliente OpenAI
 openai_client = OpenAI(api_key=st.secrets["openai_api_key"])
 
-# Definición de los eventos que se registrarán
+# Eventos definidos
 evento_a = "La Iniciativa Aquella"
 evento_b = "La Iniciativa de Pago"
 eventos = {
@@ -33,7 +33,8 @@ eventos = {
     "💸": evento_b,
 }
 
-# Sistema categorial con todas las categorías y subcategorías para clasificar reflexiones
+
+# Sistema categorial para reflexiones
 sistema_categorial = {
     "1.1": {"categoria": "Dinámicas cotidianas", "subcategoria": "Organización del tiempo",
             "descriptor": "Manejo de rutinas y distribución del día",
@@ -81,85 +82,7 @@ for key in [evento_a, evento_b]:
             st.session_state[key] = evento["fecha_hora"].astimezone(colombia)
 
 
-def mensaje_personalizado(nombre_evento):
-    """Genera un mensaje claro y simple para el usuario basado en el patrón histórico de horarios y días,
-    considerando el día actual y horas habituales de recaída."""
-    eventos = list(coleccion_eventos.find({"evento": nombre_evento}))
-    total = len(eventos)
-    if total == 0:
-        return "No hay registros aún para evaluar riesgo.", "info"
-
-    dias = [ev["fecha_hora"].astimezone(colombia).weekday() for ev in eventos]
-    cuenta_dias = Counter(dias)
-    horas = [ev["fecha_hora"].astimezone(colombia).hour for ev in eventos]
-
-    hoy = datetime.now(colombia).weekday()
-    ahora = datetime.now(colombia).hour
-
-    propor_dia = cuenta_dias[hoy] / total if hoy in cuenta_dias else 0
-
-    horas_ordenadas = sorted(horas)
-    if len(horas_ordenadas) >= 10:
-        idx_min = int(0.1 * len(horas_ordenadas))
-        idx_max = int(0.9 * len(horas_ordenadas))
-        hora_min = horas_ordenadas[idx_min]
-        hora_max = horas_ordenadas[idx_max]
-    else:
-        hora_min = min(horas_ordenadas) if horas_ordenadas else 0
-        hora_max = max(horas_ordenadas) if horas_ordenadas else 23
-
-    if propor_dia > 0.2 and (hora_min <= ahora <= hora_max):
-        mensaje = "Alerta: hoy y en esta hora, según tu historial, la probabilidad de recaída es alta. ¡Cuidate mucho!"
-        nivel = "error"
-    elif propor_dia > 0.1:
-        mensaje = "Precaución: hoy es un día con cierta probabilidad moderada de recaída según tu historial."
-        nivel = "warning"
-    else:
-        mensaje = "Probabilidad baja de recaída hoy, seguí así."
-        nivel = "success"
-
-    return mensaje, nivel
-
-
-def eventos_dia_historial(nombre_evento):
-    """Extrae y muestra las horas de los eventos que han ocurrido históricamente en el mismo día de la semana que hoy.
-    Esto ayuda a construir una línea temporal de eventos pasados para el usuario."""
-    ahora = datetime.now(colombia)
-    dia_objetivo = ahora.weekday()  # 0 lunes, 6 domingo
-
-    # En MongoDB, día de la semana con $dayOfWeek: domingo=1, lunes=2... sábado=7
-    dia_mongo = (dia_objetivo + 1) if dia_objetivo < 6 else 1  # Ajuste
-
-    pipeline = [
-        {
-            "$addFields": {
-                "dia_semana": {"$dayOfWeek": {"date": "$fecha_hora", "timezone": "America/Bogota"}}
-            }
-        },
-        {
-            "$match": {
-                "evento": nombre_evento,
-                "dia_semana": dia_mongo
-            }
-        },
-        {
-            "$sort": {"fecha_hora": 1}
-        }
-    ]
-
-    eventos_similares = list(db.eventos.aggregate(pipeline))
-
-    if not eventos_similares:
-        return "No hay registros históricos para este día de la semana.", "info"
-
-    horas = [ev["fecha_hora"].astimezone(colombia).strftime("%H:%M") for ev in eventos_similares]
-    mensaje = "Históricamente tus eventos en este día ocurren a las horas: " + ", ".join(horas)
-
-    return mensaje, "info"
-
-
 def clasificar_reflexion_openai(texto_reflexion: str) -> str:
-    """Consulta OpenAI para clasificar una reflexión dentro del sistema categorial."""
     prompt = f"""Sistema categorial para clasificar reflexiones:
 
 1.1 Organización del tiempo
@@ -192,7 +115,6 @@ Respuesta sólo con el código, ejemplo: 1.4
 
 
 def guardar_reflexion(fecha_hora, emociones, reflexion):
-    """Guarda una reflexión junto con emociones y categoría asignada."""
     categoria_auto = clasificar_reflexion_openai(reflexion)
     doc = {
         "fecha_hora": fecha_hora,
@@ -205,22 +127,21 @@ def guardar_reflexion(fecha_hora, emociones, reflexion):
 
 
 def registrar_evento(nombre_evento, fecha_hora):
-    """Registra un evento y actualiza el session_state para mostrar racha."""
-    coleccion_eventos.insert_one({"evento": nombre_evento, "fecha_hora": fecha_hora})
+    dia_local = fecha_hora.astimezone(colombia)
+    dia_semana = dia_local.weekday()  # 0 = lunes, ..., 6 = domingo
+    coleccion_eventos.insert_one({"evento": nombre_evento, "fecha_hora": fecha_hora, "dia_semana": dia_semana})
     st.session_state[nombre_evento] = fecha_hora
 
 
 def mostrar_racha(nombre_evento, emoji):
-    """Muestra la racha con duración desde el último evento y progreso hacia metas y récords."""
     clave_estado = f"mostrar_racha_{nombre_evento}"
     if clave_estado not in st.session_state:
         st.session_state[clave_estado] = False
     mostrar = st.checkbox("Ver/ocultar racha", value=st.session_state[clave_estado], key=f"check_{nombre_evento}")
     st.session_state[clave_estado] = mostrar
-
     st.markdown("### ⏱️ Racha")
-
     if nombre_evento in st.session_state:
+        # se sugiere quitar st_autorefresh para evitar parpadeos
         ultimo = st.session_state[nombre_evento]
         ahora = datetime.now(colombia)
         delta = ahora - ultimo
@@ -243,7 +164,6 @@ def mostrar_racha(nombre_evento, emoji):
         if mostrar:
             st.metric("Duración", f"{minutos:,} min", tiempo)
             st.caption(f"🔴 Última recaída: {dia_es} {ultimo.strftime('%d-%m-%y %H:%M:%S')}")
-
             if nombre_evento == evento_a:
                 registros = list(coleccion_eventos.find({"evento": nombre_evento}).sort("fecha_hora", -1))
                 record = max([(registros[i - 1]["fecha_hora"] - registros[i]["fecha_hora"])
@@ -288,7 +208,6 @@ def mostrar_racha(nombre_evento, emoji):
                 st.markdown(f"📊 **Progreso hacia {label_meta}:** `{progreso_visual * 100:.1f}%`")
                 st.progress(progreso_visual)
                 st.markdown(f"📈 **Progreso frente al récord:** `{porcentaje_record:.1f}%`")
-
         else:
             st.metric("Duración", "•••••• min", "••a ••m ••d ••h ••m ••s")
             st.caption("🔒 Información sensible oculta. Activá la casilla para visualizar.")
@@ -298,7 +217,6 @@ def mostrar_racha(nombre_evento, emoji):
 
 
 def obtener_registros(nombre_evento):
-    """Obtiene el historial de eventos y calcula intervalos entre ellos para mostrar."""
     letras_dia = {0: "L", 1: "M", 2: "X", 3: "J", 4: "V", 5: "S", 6: "D"}
     eventos = list(coleccion_eventos.find({"evento": nombre_evento}).sort("fecha_hora", -1))
     filas = []
@@ -331,7 +249,6 @@ def obtener_registros(nombre_evento):
 
 
 def obtener_reflexiones():
-    """Obtiene y estructura la lista de reflexiones para mostrar en historial."""
     docs = list(coleccion_reflexiones.find({}).sort("fecha_hora", -1))
     rows = []
     for d in docs:
@@ -360,7 +277,6 @@ def obtener_reflexiones():
 
 
 def mostrar_tabla_eventos(nombre_evento):
-    """Muestra registros con opción de ocultar datos y mostrar recuento total."""
     st.subheader(f"📍 Registros")
     df = obtener_registros(nombre_evento)
     total_registros = len(df)
@@ -386,24 +302,56 @@ def mostrar_tabla_eventos(nombre_evento):
         st.caption("🔒 Registros ocultos. Activá la casilla para visualizar.")
 
 
-# Interfaz Principal
+def mensaje_personalizado(nombre_evento):
+    dia_objetivo = datetime.now(colombia).weekday()
+    eventos = list(coleccion_eventos.find({
+        "evento": nombre_evento,
+        "dia_semana": dia_objetivo
+    }).sort("fecha_hora", 1))
+
+    total = len(eventos)
+    if total == 0:
+        return "No hay registros aún para evaluar riesgo.", "info"
+
+    dias = [ev["fecha_hora"].astimezone(colombia).weekday() for ev in eventos]
+    cuenta_dias = Counter(dias)
+
+    horas = [ev["fecha_hora"].astimezone(colombia).strftime("%H:%M") for ev in eventos]
+    horas.sort()
+
+    hoy = datetime.now(colombia).weekday()
+    ahora = datetime.now(colombia).hour
+
+    propor_dia = cuenta_dias[hoy] / total if hoy in cuenta_dias else 0
+
+    # Lógica para regresar mesaejes simples y claros para usuario
+    if propor_dia > 0.2 and (int(horas[0].split(":")[0]) <= ahora <= int(horas[-1].split(":")[0])):
+        mensaje = "Alerta: hoy y en esta hora hay alta probabilidad según tu historial. ¡Cuidate mucho!"
+        nivel = "error"
+    elif propor_dia > 0.1:
+        mensaje = "Precaución: hoy es un día con probabilidad moderada de recaída según tu historial."
+        nivel = "warning"
+    else:
+        mensaje = "Probabilidad baja de recaída hoy, seguí así."
+        nivel = "success"
+
+    return mensaje, nivel
+
+
 st.title("Reinicia")
 
 seleccion = st.selectbox("Seleccioná qué registrar o consultar:", list(eventos.keys()))
 opcion = eventos[seleccion]
 
-# Limpiar estado si no es reflexión para evitar conflictos
 if opcion != "reflexion":
     for key in ["texto_reflexion", "emociones_reflexion", "reset_reflexion"]:
         if key in st.session_state:
             del st.session_state[key]
 
-# Módulo registrar eventos
 if opcion in [evento_a, evento_b]:
     st.header(f"📍 Registro de evento")
     fecha_hora_evento = datetime.now(colombia)
 
-    # Mostrar mensaje de riesgo personalizado
     mensaje, nivel = mensaje_personalizado(opcion)
     if nivel == "error":
         st.error(mensaje)
@@ -412,19 +360,13 @@ if opcion in [evento_a, evento_b]:
     else:
         st.success(mensaje)
 
-    # Mostrar línea temporal de eventos históricos para días como hoy
-    tiempo_mensaje, tiempo_nivel = eventos_dia_historial(opcion)
-    st.info(tiempo_mensaje)
-
-    # Botón para registrar nuevo evento
     if st.button("☠️ ¿Registrar?"):
         registrar_evento(opcion, fecha_hora_evento)
         st.success(f"Evento '{seleccion}' registrado a las {fecha_hora_evento.strftime('%H:%M:%S')}")
-        st.rerun()
+        st.experimental_rerun()
 
     mostrar_racha(opcion, seleccion.split()[0])
 
-# Módulo reflexiones
 elif opcion == "reflexion":
     st.header("🧠 Registrar reflexión")
 
@@ -432,7 +374,7 @@ elif opcion == "reflexion":
         st.session_state["texto_reflexion"] = ""
         st.session_state["emociones_reflexion"] = []
         st.session_state["reset_reflexion"] = False
-        st.rerun()
+        st.experimental_rerun()
 
     ultima = coleccion_reflexiones.find_one({}, sort=[("fecha_hora", -1)])
     if ultima:
@@ -461,9 +403,8 @@ elif opcion == "reflexion":
             categoria_asignada = guardar_reflexion(fecha_hora_reflexion, emociones, texto_reflexion)
             st.success(f"Reflexión guardada con categoría: {categoria_asignada}")
             st.session_state["reset_reflexion"] = True
-            st.rerun()
+            st.experimental_rerun()
 
-# Módulo historial
 elif opcion == "historial":
     st.header("📑 Historial completo")
     tabs = st.tabs(["🧠 Reflexiones", "✊🏽", "💸"])
