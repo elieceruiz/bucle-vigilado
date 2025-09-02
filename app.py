@@ -4,14 +4,32 @@ from pymongo import MongoClient
 import pytz
 import pandas as pd
 from dateutil.relativedelta import relativedelta
+from streamlit_autorefresh import st_autorefresh
 from openai import OpenAI
-import time
 
-# Configuración página y zona horaria
 st.set_page_config(page_title="Reinicia", layout="centered")
 colombia = pytz.timezone("America/Bogota")
 
-# Conexión MongoDB
+dias_semana_es = {
+    "Monday": "Lunes",
+    "Tuesday": "Martes",
+    "Wednesday": "Miércoles",
+    "Thursday": "Jueves",
+    "Friday": "Viernes",
+    "Saturday": "Sábado",
+    "Sunday": "Domingo"
+}
+
+dias_semana_3letras = {
+    0: "Lun",
+    1: "Mar",
+    2: "Mié",
+    3: "Jue",
+    4: "Vie",
+    5: "Sáb",
+    6: "Dom"
+}
+
 client = MongoClient(st.secrets["mongo_uri"])
 db = client["registro_bucle"]
 coleccion_eventos = db["eventos"]
@@ -19,10 +37,8 @@ coleccion_reflexiones = db["reflexiones"]
 coleccion_hitos = db["hitos"]
 coleccion_visual = db["log_visual"]
 
-# Cliente OpenAI
 openai_client = OpenAI(api_key=st.secrets["openai_api_key"])
 
-# Eventos definidos
 evento_a = "La Iniciativa Aquella"
 evento_b = "La Iniciativa de Pago"
 eventos = {
@@ -32,7 +48,6 @@ eventos = {
     "💸": evento_b,
 }
 
-# Sistema categorial para reflexiones
 sistema_categorial = {
     "1.1": {"categoria": "Dinámicas cotidianas", "subcategoria": "Organización del tiempo",
             "descriptor": "Manejo de rutinas y distribución del día",
@@ -72,7 +87,6 @@ sistema_categorial = {
             "observable": "Expresiones de libertad, vergüenza, culpa, normalización; uso de términos religiosos o morales."},
 }
 
-# Inicializar últimos eventos en session_state
 for key in [evento_a, evento_b]:
     if key not in st.session_state:
         evento = coleccion_eventos.find_one({"evento": key}, sort=[("fecha_hora", -1)])
@@ -81,19 +95,24 @@ for key in [evento_a, evento_b]:
 
 def clasificar_reflexion_openai(texto_reflexion: str) -> str:
     prompt = f"""Sistema categorial para clasificar reflexiones:
+
 1.1 Organización del tiempo
 1.2 Relaciones sociales
 1.3 Contextos de intimidad
 1.4 Factores emocionales
+
 2.1 Motivaciones
 2.2 Prácticas asociadas
 2.3 Representaciones
 2.4 Efectos en la trayectoria íntima
+
 3.1 Prácticas de autocuidado
 3.2 Placer y exploración del cuerpo
 3.3 Relación con la intimidad
 3.4 Representaciones culturales
+
 Por favor indica el código de la categoría/subcategoría que mejor describe esta reflexión:
+
 Reflexión: \"\"\"{texto_reflexion}\"\"\"
 Respuesta sólo con el código, ejemplo: 1.4
 """
@@ -119,7 +138,28 @@ def guardar_reflexion(fecha_hora, emociones, reflexion):
 def registrar_evento(nombre_evento, fecha_hora):
     coleccion_eventos.insert_one({"evento": nombre_evento, "fecha_hora": fecha_hora})
     st.session_state[nombre_evento] = fecha_hora
-    st.rerun()
+
+def obtener_estadisticas_evento(nombre_evento):
+    eventos_lista = list(coleccion_eventos.find({"evento": nombre_evento}))
+    if not eventos_lista:
+        return None
+
+    fechas = [e["fecha_hora"].astimezone(colombia) for e in eventos_lista]
+
+    hoy = datetime.now(colombia).strftime('%A')
+    hoy_es = dias_semana_es.get(hoy, hoy)
+
+    recaidas = len(fechas)
+    horas = [f.hour for f in fechas]
+
+    if recaidas == 1:
+        hora_texto = f"Hora: {horas[0]:02d}:00"
+    else:
+        hora_min = min(horas)
+        hora_max = max(horas)
+        hora_texto = f"Rango horario: {hora_min:02d}:00 - {hora_max:02d}:59"
+
+    return hoy_es, recaidas, hora_texto
 
 def mostrar_racha(nombre_evento, emoji):
     clave_estado = f"mostrar_racha_{nombre_evento}"
@@ -128,41 +168,68 @@ def mostrar_racha(nombre_evento, emoji):
     mostrar = st.checkbox("Ver/ocultar racha", value=st.session_state[clave_estado], key=f"check_{nombre_evento}")
     st.session_state[clave_estado] = mostrar
     st.markdown("### ⏱️ Racha")
-
-    if nombre_evento in st.session_state and mostrar:
+    if nombre_evento in st.session_state:
+        st_autorefresh(interval=1000, limit=None, key=f"auto_{nombre_evento}")
         ultimo = st.session_state[nombre_evento]
-        placeholder = st.empty()
+        ahora = datetime.now(colombia)
+        delta = ahora - ultimo
+        detalle = relativedelta(ahora, ultimo)
+        minutos = int(delta.total_seconds() // 60)
+        tiempo = f"{detalle.years}a {detalle.months}m {detalle.days}d {detalle.hours}h {detalle.minutes}m {detalle.seconds}s"
 
-        while st.session_state[clave_estado]:
-            ahora = datetime.now(colombia)
-            delta = ahora - ultimo
-            detalle = relativedelta(ahora, ultimo)
-            minutos = int(delta.total_seconds() // 60)
-            tiempo = f"{detalle.years}a {detalle.months}m {detalle.days}d {detalle.hours}h {detalle.minutes}m {detalle.seconds}s"
+        dia = ultimo.strftime('%A')
+        dia_es = dias_semana_es.get(dia, dia)
 
-            with placeholder.container():
-                st.metric("Duración", f"{minutos:,} min", tiempo)
-                nombre_dia = {
-                    0: "Lunes", 1: "Martes", 2: "Miércoles", 3: "Jueves",
-                    4: "Viernes", 5: "Sábado", 6: "Domingo"
-                }
-                dia = ultimo.weekday()
-                dia_nombre_completo = nombre_dia.get(dia, "?")
-                st.caption(f"🔴 Última recaída: {dia_nombre_completo}, {ultimo.strftime('%d-%m-%y %H:%M:%S')}")
-
-            time.sleep(1)
-
-        placeholder.empty()
-
-    elif not mostrar:
-        st.metric("Duración", "•••••• min", "••a ••m ••d ••h ••m ••s")
-        st.caption("🔒 Información sensible oculta. Activá la casilla para visualizar.")
+        if mostrar:
+            st.metric("Duración", f"{minutos:,} min", tiempo)
+            st.caption(f"🔴 Última recaída: {dia_es} {ultimo.strftime('%d-%m-%y %H:%M:%S')}")
+            if nombre_evento == "La Iniciativa Aquella":
+                registros = list(coleccion_eventos.find({"evento": nombre_evento}).sort("fecha_hora", -1))
+                record = max([(registros[i - 1]["fecha_hora"] - registros[i]["fecha_hora"])
+                              for i in range(1, len(registros))], default=delta)
+                total_dias = record.days
+                horas = record.seconds // 3600
+                minutos_rec = (record.seconds % 3600) // 60
+                segundos = record.seconds % 60
+                record_str = f"{total_dias} días, {horas:02d}:{minutos_rec:02d}:{segundos:02d}"
+                umbral = timedelta(days=3)
+                meta_5 = timedelta(days=5)
+                meta_21 = timedelta(days=21)
+                if delta > umbral:
+                    st.success("✅ Superaste la zona crítica de las 72 horas.")
+                if delta > meta_5:
+                    st.success("🌱 ¡Sostenés 5 días! Se está instalando un nuevo hábito.")
+                if delta > meta_21:
+                    st.success("🏗️ 21 días: ya creaste una estructura sólida.")
+                if delta < umbral:
+                    meta_actual = umbral
+                    label_meta = "zona crítica (3 días)"
+                elif delta < meta_5:
+                    meta_actual = meta_5
+                    label_meta = "meta base (5 días)"
+                elif delta < meta_21:
+                    meta_actual = meta_21
+                    label_meta = "meta sólida (21 días)"
+                elif delta < record:
+                    meta_actual = record
+                    label_meta = "tu récord"
+                else:
+                    meta_actual = delta
+                    label_meta = "¡Nuevo récord!"
+                progreso_visual = min(delta.total_seconds() / meta_actual.total_seconds(), 1.0)
+                porcentaje_record = (delta.total_seconds() / record.total_seconds()) * 100
+                st.markdown(f"🏅 **Récord personal:** `{record_str}`")
+                st.markdown(f"📊 **Progreso hacia {label_meta}:** `{progreso_visual * 100:.1f}%`")
+                st.progress(progreso_visual)
+                st.markdown(f"📈 **Progreso frente al récord:** `{porcentaje_record:.1f}%`")
+        else:
+            st.metric("Duración", "•••••• min", "••a ••m ••d ••h ••m ••s")
+            st.caption("🔒 Información sensible oculta. Activá la casilla para visualizar.")
     else:
         st.metric("Duración", "0 min")
         st.caption("0a 0m 0d 0h 0m 0s")
 
 def obtener_registros(nombre_evento):
-    letras_dia = {0:"L", 1:"M", 2:"X", 3:"J", 4:"V", 5:"S", 6:"D"}
     eventos = list(coleccion_eventos.find({"evento": nombre_evento}).sort("fecha_hora", -1))
     filas = []
     for i, e in enumerate(eventos):
@@ -183,7 +250,7 @@ def obtener_registros(nombre_evento):
             if detalle.minutes:
                 partes.append(f"{detalle.minutes}m")
             diferencia = " ".join(partes)
-        dia_semana = letras_dia[fecha.weekday()]
+        dia_semana = dias_semana_3letras[fecha.weekday()]
         filas.append({
             "Día": dia_semana,
             "Fecha": fecha.strftime("%d-%m-%y"),
@@ -219,6 +286,12 @@ def obtener_reflexiones():
         })
     return pd.DataFrame(rows)
 
+def formatear_subcategoria(codigo_sub):
+    for codigo, info in sistema_categorial.items():
+        if info["subcategoria"] == codigo_sub:
+            return f"{codigo} {codigo_sub}"
+    return codigo_sub
+
 def mostrar_tabla_eventos(nombre_evento):
     st.subheader(f"📍 Registros")
     df = obtener_registros(nombre_evento)
@@ -236,110 +309,31 @@ def mostrar_tabla_eventos(nombre_evento):
         st.dataframe(df, use_container_width=True, hide_index=True)
     else:
         df_oculto = pd.DataFrame({
-            "Día": ["•"] * total_registros,
-            "Fecha": ["••-••-••"] * total_registros,
-            "Hora": ["••:••"] * total_registros,
-            "Sin recaída": ["••a ••m ••d ••h ••m"] * total_registros
+            "Día": [".."] * total_registros,
+            "Fecha": ["..-..-.."] * total_registros,
+            "Hora": ["..:.."] * total_registros,
+            "Sin recaída": ["..a ..m ..d ..h ..m"] * total_registros
         })
         st.dataframe(df_oculto, use_container_width=True, hide_index=True)
         st.caption("🔒 Registros ocultos. Activá la casilla para visualizar.")
 
-def mostrar_hitos(nombre_evento):
-    st.subheader("🏆 Hitos y progreso")
-    ahora = datetime.now(colombia)
-
-    hitos = list(coleccion_hitos.find({"evento": nombre_evento}).sort("fecha_hora"))
-    if not hitos:
-        st.info("No hay hitos registrados para este evento.")
-        return
-
-    ultimo = st.session_state.get(nombre_evento, None)
-    if not ultimo:
-        st.warning("No se ha registrado aún el evento para calcular progreso.")
-        return
-
-    total_hitos = len(hitos)
-    contador_superados = 0
-
-    for hito in hitos:
-        fecha_hito = hito.get("fecha_hora", None)
-        if fecha_hito is None:
-            continue
-        if not isinstance(fecha_hito, datetime):
-            try:
-                fecha_hito = pd.to_datetime(fecha_hito)
-            except Exception:
-                continue
-        fecha_hito = fecha_hito.astimezone(colombia)
-        if ultimo >= fecha_hito:
-            contador_superados += 1
-
-    progreso = contador_superados / total_hitos if total_hitos > 0 else 0
-    porcentaje = progreso * 100
-
-    st.progress(progreso)
-    st.metric("Hitos superados", f"{contador_superados}/{total_hitos} ({porcentaje:.1f}%)")
-
-    if st.checkbox("Mostrar detalles de hitos"):
-        for i, hito in enumerate(hitos):
-            fecha_hito = hito.get("fecha_hora", None)
-            if fecha_hito is None:
-                fecha_str = "Fecha no disponible"
-            else:
-                try:
-                    if not isinstance(fecha_hito, datetime):
-                        fecha_hito = pd.to_datetime(fecha_hito)
-                    fecha_str = fecha_hito.astimezone(colombia).strftime("%d-%m-%y %H:%M")
-                except Exception:
-                    fecha_str = "Fecha inválida"
-            descripcion = hito.get("descripcion", "Sin descripción")
-            estado = "✔️" if ultimo >= hito.get("fecha_hora", datetime.min) else "⏳"
-            st.write(f"{estado} Hito {i + 1} - {fecha_str}: {descripcion}")
-
-# Interfaz Principal
 st.title("Reinicia")
 seleccion = st.selectbox("Seleccioná qué registrar o consultar:", list(eventos.keys()))
 opcion = eventos[seleccion]
 
-# Mostrar mensaje de recaídas debajo del dropdown
 if opcion in [evento_a, evento_b]:
-    eventos_tipo = list(coleccion_eventos.find({"evento": opcion}))
-    # Convertir fechas y zona horaria
-    for e in eventos_tipo:
-        if not isinstance(e["fecha_hora"], datetime):
-            e["fecha_hora"] = pd.to_datetime(e["fecha_hora"])
-        e["fecha_hora"] = e["fecha_hora"].astimezone(colombia)
-    ahora = datetime.now(colombia)
-    dia_semana_actual = ahora.weekday()
-    letras_dia = {0:"L", 1:"M", 2:"X", 3:"J", 4:"V", 5:"S", 6:"D"}
-    inicial_dia = letras_dia.get(dia_semana_actual, "?")
-
-    eventos_filtrados = [e for e in eventos_tipo if e["fecha_hora"].weekday() == dia_semana_actual]
-
-    cantidad = len(eventos_filtrados)
-
-    if cantidad == 0:
-        st.success(f"No hay recaídas para '{opcion}' en días como hoy ({inicial_dia}).", icon="✅")
-    elif cantidad == 1:
-        hora = eventos_filtrados[0]["fecha_hora"].strftime("%H:%M")
-        st.error(f"Hay 1 recaída para '{opcion}' en días como hoy ({inicial_dia}) a las {hora}.", icon="⚠️")
+    info = obtener_estadisticas_evento(opcion)
+    if info:
+        dia_semana, num_recaidas, hora_o_rango = info
+        st.success(f"Hoy es: {dia_semana} | Recaídas: {num_recaidas} | {hora_o_rango}")
     else:
-        horas = sorted([e["fecha_hora"].time() for e in eventos_filtrados])
-        hora_min = horas[0].strftime("%H:%M")
-        hora_max = horas[-1].strftime("%H:%M")
-        st.error(
-            f"Hay {cantidad} recaídas para '{opcion}' en días como hoy ({inicial_dia}).\n\n"
-            f"Rango horario: {hora_min} - {hora_max}",
-            icon="⚠️"
-        )
+        st.error("No hay registros para mostrar estadísticas.")
 
-# Limpiar estado si no es reflexión
 if opcion != "reflexion":
     for key in ["texto_reflexion", "emociones_reflexion", "reset_reflexion"]:
         if key in st.session_state:
             del st.session_state[key]
 
-# Módulos: Eventos
 if opcion in [evento_a, evento_b]:
     st.header(f"📍 Registro de evento")
     fecha_hora_evento = datetime.now(colombia)
@@ -350,7 +344,6 @@ if opcion in [evento_a, evento_b]:
         st.rerun()
 
     mostrar_racha(opcion, seleccion.split()[0])
-    mostrar_hitos(opcion)
 
 elif opcion == "reflexion":
     st.header("🧠 Registrar reflexión")
