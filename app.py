@@ -81,24 +81,19 @@ for key in [evento_a, evento_b]:
 
 def clasificar_reflexion_openai(texto_reflexion: str) -> str:
     prompt = f"""Sistema categorial para clasificar reflexiones:
-
 1.1 Organización del tiempo
 1.2 Relaciones sociales
 1.3 Contextos de intimidad
 1.4 Factores emocionales
-
 2.1 Motivaciones
 2.2 Prácticas asociadas
 2.3 Representaciones
 2.4 Efectos en la trayectoria íntima
-
 3.1 Prácticas de autocuidado
 3.2 Placer y exploración del cuerpo
 3.3 Relación con la intimidad
 3.4 Representaciones culturales
-
 Por favor indica el código de la categoría/subcategoría que mejor describe esta reflexión:
-
 Reflexión: \"\"\"{texto_reflexion}\"\"\"
 Respuesta sólo con el código, ejemplo: 1.4
 """
@@ -276,6 +271,36 @@ def mostrar_estado_zona_roja_con_colores(opcion, coleccion_eventos):
             icon="✅"
         )
 
+def mostrar_hitos(nombre_evento):
+    st.subheader("🏆 Hitos y progreso")
+    ahora = datetime.now(colombia)
+    
+    hitos = list(coleccion_hitos.find({"evento": nombre_evento}).sort("fecha_hora"))
+    if not hitos:
+        st.info("No hay hitos registrados para este evento.")
+        return
+    
+    ultimo = st.session_state.get(nombre_evento, None)
+    if not ultimo:
+        st.warning("No se ha registrado aún el evento para calcular progreso.")
+        return
+    
+    total_hitos = len(hitos)
+    contador_superados = sum(1 for hito in hitos if ultimo >= hito["fecha_hora"])
+    
+    progreso = contador_superados / total_hitos if total_hitos > 0 else 0
+    porcentaje = progreso * 100
+    
+    st.progress(progreso)
+    st.metric("Hitos superados", f"{contador_superados}/{total_hitos} ({porcentaje:.1f}%)")
+    
+    if st.checkbox("Mostrar detalles de hitos"):
+        for i, hito in enumerate(hitos):
+            fecha_str = hito["fecha_hora"].astimezone(colombia).strftime("%d-%m-%y %H:%M")
+            descripcion = hito.get("descripcion", "Sin descripción")
+            estado = "✔️" if ultimo >= hito["fecha_hora"] else "⏳"
+            st.write(f"{estado} Hito {i+1} - {fecha_str}: {descripcion}")
+
 # Interfaz Principal
 st.title("Reinicia")
 seleccion = st.selectbox("Seleccioná qué registrar o consultar:", list(eventos.keys()))
@@ -298,6 +323,7 @@ if opcion in [evento_a, evento_b]:
 
     mostrar_estado_zona_roja_con_colores(opcion, coleccion_eventos)
     mostrar_racha(opcion, seleccion.split()[0])
+    mostrar_hitos(opcion)  # NUEVO: muestra barra y métricas de hitos y progreso
 
 elif opcion == "reflexion":
     st.header("🧠 Registrar reflexión")
@@ -314,7 +340,6 @@ elif opcion == "reflexion":
         st.caption(f"📌 Última registrada: {fecha.strftime('%d-%m-%y %H:%M:%S')}")
 
     fecha_hora_reflexion = datetime.now(colombia)
-
     emociones_opciones = [
         "😰 Ansioso", "😡 Irritado / Rabia contenida", "💪 Firme / Decidido",
         "😌 Aliviado / Tranquilo", "😓 Culpable", "🥱 Apático / Cansado", "😔 Triste"
@@ -349,7 +374,7 @@ elif opcion == "historial":
                 st.write(row['Reflexión'])
                 st.markdown("---")
                 st.write(f"**Estados de ánimo:** {row['Emociones']}")
-                st.markdown(f"**Categoría:** {row['Categoría']}")
+                st.markdown(f"**Categoría:** {row['Categoria']}")
                 st.markdown(f"**Subcategoría:** {row['Subcategoría']}")
                 if row['Descriptor']:
                     st.markdown(f"**Descriptor:** {row['Descriptor']}")
