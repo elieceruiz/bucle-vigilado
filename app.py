@@ -274,7 +274,7 @@ def formatear_subcategoria(codigo_sub):
             return f"{codigo} {codigo_sub}"
     return codigo_sub
 
-# Mostrar tabla eventos con opción ocultar y total con punticos mientras esté oculta
+# Mostrar tabla eventos con opción ocultar y total con punticos mientras está oculta
 def mostrar_tabla_eventos(nombre_evento):
     st.subheader(f"📍 Registros")
     df = obtener_registros(nombre_evento)
@@ -300,6 +300,26 @@ def mostrar_tabla_eventos(nombre_evento):
         st.dataframe(df_oculto, use_container_width=True, hide_index=True)
         st.caption("🔒 Registros ocultos. Activá la casilla para visualizar.")
 
+# Función que muestra mensaje de probabilidad basado en el día y frecuencia en esa semana
+def mostrar_mensaje_probabilidad_recaida(nombre_evento):
+    today_colombia = datetime.now(colombia)
+    dia_semana_actual = today_colombia.weekday()  # 0 lunes ... 6 domingo
+
+    eventos_registrados = list(coleccion_eventos.find({"evento": nombre_evento}))
+    cuenta_mismo_dia = sum(1 for ev in eventos_registrados if ev["fecha_hora"].astimezone(colombia).weekday() == dia_semana_actual)
+
+    if cuenta_mismo_dia >= 5:
+        mensaje = "⚠️ Alta probabilidad de recaída hoy. ¡Cuidate mucho!"
+        estilo = "color: red; font-weight: bold; background-color: #ffeeee; padding: 10px; border-radius:5px"
+    elif cuenta_mismo_dia >= 2:
+        mensaje = "⚠️ Riesgo moderado de recaída hoy. Mantente atento."
+        estilo = "color: orange; font-weight: bold; background-color: #fff3cd; padding: 10px; border-radius:5px"
+    else:
+        mensaje = "✅ Baja probabilidad de recaída hoy. ¡Seguí adelante!"
+        estilo = "color: green; font-weight: bold; background-color: #e6ffed; padding: 10px; border-radius:5px"
+
+    st.markdown(f'<div style="{estilo}">{mensaje}</div>', unsafe_allow_html=True)
+
 # Interfaz Principal
 st.title("Reinicia")
 seleccion = st.selectbox("Seleccioná qué registrar o consultar:", list(eventos.keys()))
@@ -320,6 +340,8 @@ if opcion in [evento_a, evento_b]:
         registrar_evento(opcion, fecha_hora_evento)
         st.success(f"Evento '{seleccion}' registrado a las {fecha_hora_evento.strftime('%H:%M:%S')}")
         st.experimental_rerun()
+
+    mostrar_mensaje_probabilidad_recaida(opcion)  # Mostrar el mensaje estado
 
     mostrar_racha(opcion, seleccion.split()[0])
 
