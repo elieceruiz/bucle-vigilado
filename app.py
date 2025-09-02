@@ -139,26 +139,30 @@ def registrar_evento(nombre_evento, fecha_hora):
     coleccion_eventos.insert_one({"evento": nombre_evento, "fecha_hora": fecha_hora})
     st.session_state[nombre_evento] = fecha_hora
 
+def hay_evento_mismo_dia_semana(nombre_evento):
+    dia_hoy = datetime.now(colombia).weekday()
+    eventos = coleccion_eventos.find({"evento": nombre_evento})
+    for e in eventos:
+        fecha = e["fecha_hora"].astimezone(colombia)
+        if fecha.weekday() == dia_hoy:
+            return True
+    return False
+
 def obtener_estadisticas_evento(nombre_evento):
     eventos_lista = list(coleccion_eventos.find({"evento": nombre_evento}))
     if not eventos_lista:
         return None
-
     fechas = [e["fecha_hora"].astimezone(colombia) for e in eventos_lista]
-
     hoy = datetime.now(colombia).strftime('%A')
     hoy_es = dias_semana_es.get(hoy, hoy)
-
     recaidas = len(fechas)
     horas = [f.hour for f in fechas]
-
     if recaidas == 1:
         hora_texto = f"Hora: {horas[0]:02d}:00"
     else:
         hora_min = min(horas)
         hora_max = max(horas)
         hora_texto = f"Rango horario: {hora_min:02d}:00 - {hora_max:02d}:59"
-
     return hoy_es, recaidas, hora_texto
 
 def mostrar_racha(nombre_evento, emoji):
@@ -176,17 +180,14 @@ def mostrar_racha(nombre_evento, emoji):
         detalle = relativedelta(ahora, ultimo)
         minutos = int(delta.total_seconds() // 60)
         tiempo = f"{detalle.years}a {detalle.months}m {detalle.days}d {detalle.hours}h {detalle.minutes}m {detalle.seconds}s"
-
         dia = ultimo.strftime('%A')
         dia_es = dias_semana_es.get(dia, dia)
-
         if mostrar:
             st.metric("Duración", f"{minutos:,} min", tiempo)
             st.caption(f"🔴 Última recaída: {dia_es} {ultimo.strftime('%d-%m-%y %H:%M:%S')}")
             if nombre_evento == "La Iniciativa Aquella":
                 registros = list(coleccion_eventos.find({"evento": nombre_evento}).sort("fecha_hora", -1))
-                record = max([(registros[i - 1]["fecha_hora"] - registros[i]["fecha_hora"])
-                              for i in range(1, len(registros))], default=delta)
+                record = max([(registros[i - 1]["fecha_hora"] - registros[i]["fecha_hora"]) for i in range(1, len(registros))], default=delta)
                 total_dias = record.days
                 horas = record.seconds // 3600
                 minutos_rec = (record.seconds % 3600) // 60
@@ -309,10 +310,10 @@ def mostrar_tabla_eventos(nombre_evento):
         st.dataframe(df, use_container_width=True, hide_index=True)
     else:
         df_oculto = pd.DataFrame({
-            "Día": [".."] * total_registros,
-            "Fecha": ["..-..-.."] * total_registros,
-            "Hora": ["..:.."] * total_registros,
-            "Sin recaída": ["..a ..m ..d ..h ..m"] * total_registros
+            "Día": ["•••"] * total_registros,
+            "Fecha": ["••-••-••"] * total_registros,
+            "Hora": ["••:••"] * total_registros,
+            "Sin recaída": ["••a ••m ••d ••h ••m"] * total_registros
         })
         st.dataframe(df_oculto, use_container_width=True, hide_index=True)
         st.caption("🔒 Registros ocultos. Activá la casilla para visualizar.")
@@ -322,12 +323,15 @@ seleccion = st.selectbox("Seleccioná qué registrar o consultar:", list(eventos
 opcion = eventos[seleccion]
 
 if opcion in [evento_a, evento_b]:
-    info = obtener_estadisticas_evento(opcion)
-    if info:
-        dia_semana, num_recaidas, hora_o_rango = info
-        st.success(f"Hoy es: {dia_semana} | Recaídas: {num_recaidas} | {hora_o_rango}")
+    if hay_evento_mismo_dia_semana(opcion):
+        st.error("❗ Atención: hay al menos un registro para el día de la semana de hoy.")
     else:
-        st.error("No hay registros para mostrar estadísticas.")
+        info = obtener_estadisticas_evento(opcion)
+        if info:
+            dia_semana, num_recaidas, hora_o_rango = info
+            st.success(f"Hoy es: {dia_semana} | Recaídas: {num_recaidas} | {hora_o_rango}")
+        else:
+            st.error("No hay registros para mostrar estadísticas.")
 
 if opcion != "reflexion":
     for key in ["texto_reflexion", "emociones_reflexion", "reset_reflexion"]:
