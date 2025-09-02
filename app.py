@@ -85,45 +85,54 @@ st.title("Reinicia")
 seleccion = st.selectbox("Seleccioná qué registrar o consultar:", list(eventos.keys()))
 opcion = eventos[seleccion]
 
-# Bloque para análisis de rango histórico y zona roja (mensaje en rojo)
-dia_semana_actual = datetime.now(colombia).weekday()
-hora_actual = datetime.now(colombia).time()
+# Bloque de análisis de rango horario en rojo solo para masturbación y sexo pago
+if opcion in [evento_a, evento_b]:
+    dia_semana_actual = datetime.now(colombia).weekday()
+    hora_actual = datetime.now(colombia).time()
 
-eventos_mismo_dia = list(coleccion_eventos.find({"evento": opcion, "dia_semana": dia_semana_actual}))
+    eventos_mismo_dia = list(coleccion_eventos.find({
+        "evento": opcion,
+        "dia_semana": dia_semana_actual
+    }))
 
-if eventos_mismo_dia:
-    horas_eventos = [e["fecha_hora"].astimezone(colombia).time() for e in eventos_mismo_dia]
+    if eventos_mismo_dia:
+        horas_eventos = [e["fecha_hora"].astimezone(colombia).time() for e in eventos_mismo_dia]
+        hora_min = min(horas_eventos)
+        hora_max = max(horas_eventos)
 
-    hora_min = min(horas_eventos)
-    hora_max = max(horas_eventos)
+        dt_hora_min = datetime.combine(datetime.today(), hora_min)
+        dt_hora_max = datetime.combine(datetime.today(), hora_max)
+        dt_hora_actual = datetime.combine(datetime.today(), hora_actual)
 
-    dt_hora_min = datetime.combine(datetime.today(), hora_min)
-    dt_hora_max = datetime.combine(datetime.today(), hora_max)
-    dt_hora_actual = datetime.combine(datetime.today(), hora_actual)
+        duracion_zona_roja = timedelta(hours=3)
 
-    duracion_zona_roja = timedelta(hours=3)
-
-    if dt_hora_actual < dt_hora_min:
-        tiempo_para_zona_roja = dt_hora_min - dt_hora_actual
-        st.markdown(f":red[La hora actual ({hora_actual.strftime('%H:%M')}) es ANTES del rango histórico de eventos ({hora_min.strftime('%H:%M')} - {hora_max.strftime('%H:%M')}).]")
-        st.markdown(f":red[Tiempo restante para entrar a la zona roja: {str(tiempo_para_zona_roja).split('.')[0]}]")
-    elif dt_hora_actual > dt_hora_max:
-        tiempo_fuera_zona_roja = dt_hora_actual - dt_hora_max
-        if tiempo_fuera_zona_roja < duracion_zona_roja:
-            st.markdown(f":red[La hora actual ({hora_actual.strftime('%H:%M')}) es DESPUÉS del rango histórico, pero aún dentro de la zona roja ({duracion_zona_roja}).]")
-            st.markdown(f":red[Tiempo desde salir del rango histórico: {str(tiempo_fuera_zona_roja).split('.')[0]}]")
+        if dt_hora_actual < dt_hora_min:
+            tiempo_para_zona_roja = dt_hora_min - dt_hora_actual
+            st.markdown(f":red[La hora actual ({hora_actual.strftime('%H:%M')}) es ANTES del rango histórico ({hora_min.strftime('%H:%M')} - {hora_max.strftime('%H:%M')}).]")
+            st.markdown(f":red[Tiempo restante para entrar a la zona roja: {str(tiempo_para_zona_roja).split('.')[0]}]")
+        elif dt_hora_actual > dt_hora_max:
+            tiempo_fuera_zona_roja = dt_hora_actual - dt_hora_max
+            if tiempo_fuera_zona_roja < duracion_zona_roja:
+                st.markdown(f":red[La hora actual ({hora_actual.strftime('%H:%M')}) es DESPUÉS del rango histórico, pero aún dentro de la zona roja ({duracion_zona_roja}).]")
+                st.markdown(f":red[Tiempo desde salir del rango histórico: {str(tiempo_fuera_zona_roja).split('.')[0]}]")
+            else:
+                st.markdown(f":red[La hora actual ({hora_actual.strftime('%H:%M')}) es DESPUÉS del rango horario histórico ({hora_min.strftime('%H:%M')} - {hora_max.strftime('%H:%M')}).]")
+                st.markdown(f":red[Has salido de la zona roja hace {str(tiempo_fuera_zona_roja).split('.')[0]}]")
         else:
-            st.markdown(f":red[La hora actual ({hora_actual.strftime('%H:%M')}) es DESPUÉS del rango horario histórico ({hora_min.strftime('%H:%M')} - {hora_max.strftime('%H:%M')}).]")
-            st.markdown(f":red[Has salido de la zona roja hace {str(tiempo_fuera_zona_roja).split('.')[0]}]")
+            tiempo_dentro_min = dt_hora_actual - dt_hora_min
+            tiempo_dentro_max = dt_hora_max - dt_hora_actual
+            st.markdown(f":red[La hora actual ({hora_actual.strftime('%H:%M')}) está DENTRO del rango histórico ({hora_min.strftime('%H:%M')} - {hora_max.strftime('%H:%M')}). ¡Mantente alerta!]")
+            st.markdown(f":red[Han pasado {str(tiempo_dentro_min).split('.')[0]} desde el inicio del rango y faltan {str(tiempo_dentro_max).split('.')[0]} para salir.]")
     else:
-        tiempo_dentro_min = dt_hora_actual - dt_hora_min
-        tiempo_dentro_max = dt_hora_max - dt_hora_actual
-        st.markdown(f":red[La hora actual ({hora_actual.strftime('%H:%M')}) está DENTRO del rango histórico de eventos ({hora_min.strftime('%H:%M')} - {hora_max.strftime('%H:%M')}). ¡Mantente alerta!]")
-        st.markdown(f":red[Han pasado {str(tiempo_dentro_min).split('.')[0]} desde el inicio del rango y faltan {str(tiempo_dentro_max).split('.')[0]} para salir.]")
-else:
-    st.info("No hay registros históricos de eventos para días como hoy en la semana.")
+        st.info(f"No hay registros históricos para '{opcion}' en días como hoy.")
 
-# Funciones y módulos completos para clasificar, guardar, mostrar rachas, registros y reflexiones siguen iguales:
+# Limpiar estado si no es reflexión
+if opcion != "reflexion":
+    for key in ["texto_reflexion", "emociones_reflexion", "reset_reflexion"]:
+        if key in st.session_state:
+            del st.session_state[key]
+
+# Funciones para clasificar reflexión, guardar reflexión, registrar evento y mostrar rachas:
 
 def clasificar_reflexion_openai(texto_reflexion: str) -> str:
     prompt = f"""Sistema categorial para clasificar reflexiones:
@@ -168,7 +177,12 @@ def guardar_reflexion(fecha_hora, emociones, reflexion):
     return categoria_auto
 
 def registrar_evento(nombre_evento, fecha_hora):
-    coleccion_eventos.insert_one({"evento": nombre_evento, "fecha_hora": fecha_hora})
+    dia_semana = fecha_hora.astimezone(colombia).weekday()
+    coleccion_eventos.insert_one({
+        "evento": nombre_evento,
+        "fecha_hora": fecha_hora,
+        "dia_semana": dia_semana
+    })
     st.session_state[nombre_evento] = fecha_hora
 
 def mostrar_racha(nombre_evento, emoji):
