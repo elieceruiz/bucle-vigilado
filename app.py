@@ -79,60 +79,7 @@ for key in [evento_a, evento_b]:
         if evento:
             st.session_state[key] = evento["fecha_hora"].astimezone(colombia)
 
-# Interfaz Principal
-st.title("Reinicia")
-
-seleccion = st.selectbox("Seleccioná qué registrar o consultar:", list(eventos.keys()))
-opcion = eventos[seleccion]
-
-# Bloque de análisis de rango horario en rojo solo para masturbación y sexo pago
-if opcion in [evento_a, evento_b]:
-    dia_semana_actual = datetime.now(colombia).weekday()
-    hora_actual = datetime.now(colombia).time()
-
-    eventos_mismo_dia = list(coleccion_eventos.find({
-        "evento": opcion,
-        "dia_semana": dia_semana_actual
-    }))
-
-    if eventos_mismo_dia:
-        horas_eventos = [e["fecha_hora"].astimezone(colombia).time() for e in eventos_mismo_dia]
-        hora_min = min(horas_eventos)
-        hora_max = max(horas_eventos)
-
-        dt_hora_min = datetime.combine(datetime.today(), hora_min)
-        dt_hora_max = datetime.combine(datetime.today(), hora_max)
-        dt_hora_actual = datetime.combine(datetime.today(), hora_actual)
-
-        duracion_zona_roja = timedelta(hours=3)
-
-        if dt_hora_actual < dt_hora_min:
-            tiempo_para_zona_roja = dt_hora_min - dt_hora_actual
-            st.markdown(f":red[La hora actual ({hora_actual.strftime('%H:%M')}) es ANTES del rango histórico ({hora_min.strftime('%H:%M')} - {hora_max.strftime('%H:%M')}).]")
-            st.markdown(f":red[Tiempo restante para entrar a la zona roja: {str(tiempo_para_zona_roja).split('.')[0]}]")
-        elif dt_hora_actual > dt_hora_max:
-            tiempo_fuera_zona_roja = dt_hora_actual - dt_hora_max
-            if tiempo_fuera_zona_roja < duracion_zona_roja:
-                st.markdown(f":red[La hora actual ({hora_actual.strftime('%H:%M')}) es DESPUÉS del rango histórico, pero aún dentro de la zona roja ({duracion_zona_roja}).]")
-                st.markdown(f":red[Tiempo desde salir del rango histórico: {str(tiempo_fuera_zona_roja).split('.')[0]}]")
-            else:
-                st.markdown(f":red[La hora actual ({hora_actual.strftime('%H:%M')}) es DESPUÉS del rango horario histórico ({hora_min.strftime('%H:%M')} - {hora_max.strftime('%H:%M')}).]")
-                st.markdown(f":red[Has salido de la zona roja hace {str(tiempo_fuera_zona_roja).split('.')[0]}]")
-        else:
-            tiempo_dentro_min = dt_hora_actual - dt_hora_min
-            tiempo_dentro_max = dt_hora_max - dt_hora_actual
-            st.markdown(f":red[La hora actual ({hora_actual.strftime('%H:%M')}) está DENTRO del rango histórico ({hora_min.strftime('%H:%M')} - {hora_max.strftime('%H:%M')}). ¡Mantente alerta!]")
-            st.markdown(f":red[Han pasado {str(tiempo_dentro_min).split('.')[0]} desde el inicio del rango y faltan {str(tiempo_dentro_max).split('.')[0]} para salir.]")
-    else:
-        st.info(f"No hay registros históricos para '{opcion}' en días como hoy.")
-
-# Limpiar estado si no es reflexión
-if opcion != "reflexion":
-    for key in ["texto_reflexion", "emociones_reflexion", "reset_reflexion"]:
-        if key in st.session_state:
-            del st.session_state[key]
-
-# Funciones para clasificar reflexión, guardar reflexión, registrar evento y mostrar rachas:
+# Funciones para la clasificación, guardar y registro
 
 def clasificar_reflexion_openai(texto_reflexion: str) -> str:
     prompt = f"""Sistema categorial para clasificar reflexiones:
@@ -177,11 +124,9 @@ def guardar_reflexion(fecha_hora, emociones, reflexion):
     return categoria_auto
 
 def registrar_evento(nombre_evento, fecha_hora):
-    dia_semana = fecha_hora.astimezone(colombia).weekday()
     coleccion_eventos.insert_one({
         "evento": nombre_evento,
-        "fecha_hora": fecha_hora,
-        "dia_semana": dia_semana
+        "fecha_hora": fecha_hora
     })
     st.session_state[nombre_evento] = fecha_hora
 
@@ -200,7 +145,7 @@ def mostrar_racha(nombre_evento, emoji):
         detalle = relativedelta(ahora, ultimo)
         minutos = int(delta.total_seconds() // 60)
         tiempo = f"{detalle.years}a {detalle.months}m {detalle.days}d {detalle.hours}h {detalle.minutes}m {detalle.seconds}s"
-        
+
         dias_semana_es = {
             "Monday": "Lunes",
             "Tuesday": "Martes",
@@ -212,7 +157,7 @@ def mostrar_racha(nombre_evento, emoji):
         }
         dia = ultimo.strftime('%A')
         dia_es = dias_semana_es.get(dia, dia)
-        
+
         if mostrar:
             st.metric("Duración", f"{minutos:,} min", tiempo)
             st.caption(f"🔴 Última recaída: {dia_es} {ultimo.strftime('%d-%m-%y %H:%M:%S')}")
@@ -262,6 +207,7 @@ def mostrar_racha(nombre_evento, emoji):
         st.metric("Duración", "0 min")
         st.caption("0a 0m 0d 0h 0m 0s")
 
+# Obtener registros para tabla con diferencia de tiempo
 def obtener_registros(nombre_evento):
     letras_dia = {0:"L", 1:"M", 2:"X", 3:"J", 4:"V", 5:"S", 6:"D"}
     eventos = list(coleccion_eventos.find({"evento": nombre_evento}).sort("fecha_hora", -1))
@@ -293,6 +239,7 @@ def obtener_registros(nombre_evento):
         })
     return pd.DataFrame(filas)
 
+# Obtener reflexiones para historial completo
 def obtener_reflexiones():
     docs = list(coleccion_reflexiones.find({}).sort("fecha_hora", -1))
     rows = []
@@ -320,12 +267,7 @@ def obtener_reflexiones():
         })
     return pd.DataFrame(rows)
 
-def formatear_subcategoria(codigo_sub):
-    for codigo, info in sistema_categorial.items():
-        if info["subcategoria"] == codigo_sub:
-            return f"{codigo} {codigo_sub}"
-    return codigo_sub
-
+# Mostrar tabla de eventos con opción para ocultar datos sensibles
 def mostrar_tabla_eventos(nombre_evento):
     st.subheader(f"📍 Registros")
     df = obtener_registros(nombre_evento)
@@ -351,7 +293,58 @@ def mostrar_tabla_eventos(nombre_evento):
         st.dataframe(df_oculto, use_container_width=True, hide_index=True)
         st.caption("🔒 Registros ocultos. Activá la casilla para visualizar.")
 
-# Módulos: Eventos
+# Interfaz principal con selección de módulo
+st.header("Reinicia")
+
+seleccion = st.selectbox("Seleccioná qué registrar o consultar:", list(eventos.keys()))
+opcion = eventos[seleccion]
+
+# Mostrar análisis horario solo en módulos de masturbación y sexo pago 
+if opcion in [evento_a, evento_b]:
+    dia_semana_actual = datetime.now(colombia).weekday()
+    hora_actual = datetime.now(colombia).time()
+
+    eventos = list(coleccion_eventos.find({"evento": opcion}))
+    eventos_mismo_dia = [e for e in eventos if e["fecha_hora"].astimezone(colombia).weekday() == dia_semana_actual]
+
+    if eventos_mismo_dia:
+        horas_eventos = [e["fecha_hora"].astimezone(colombia).time() for e in eventos_mismo_dia]
+        hora_min = min(horas_eventos)
+        hora_max = max(horas_eventos)
+
+        dt_hora_min = datetime.combine(datetime.today(), hora_min)
+        dt_hora_max = datetime.combine(datetime.today(), hora_max)
+        dt_hora_actual = datetime.combine(datetime.today(), hora_actual)
+
+        if dt_hora_min <= dt_hora_actual <= dt_hora_max:
+            v_desde = dt_hora_actual - dt_hora_min
+            v_hasta = dt_hora_max - dt_hora_actual
+            st.markdown(
+                f":red[La hora actual ({hora_actual.strftime('%H:%M')}) está DENTRO del rango histórico ({hora_min.strftime('%H:%M')} - {hora_max.strftime('%H:%M')}). ¡Mantente alerta!]"
+            )
+            st.markdown(f":red[Han pasado {str(v_desde).split('.')[0]} desde el inicio y faltan {str(v_hasta).split('.')[0]} para salir.]")
+        elif dt_hora_actual < dt_hora_min:
+            v_espera = dt_hora_min - dt_hora_actual
+            st.markdown(
+                f":red[La hora actual ({hora_actual.strftime('%H:%M')}) es ANTES del rango histórico ({hora_min.strftime('%H:%M')} - {hora_max.strftime('%H:%M')}).]"
+            )
+            st.markdown(f":red[Falta {str(v_espera).split('.')[0]} para entrar a la zona roja.]")
+        else:
+            v_exceso = dt_hora_actual - dt_hora_max
+            st.markdown(
+                f":red[La hora actual ({hora_actual.strftime('%H:%M')}) es DESPUÉS del rango horario histórico ({hora_min.strftime('%H:%M')} - {hora_max.strftime('%H:%M')}).]"
+            )
+            st.markdown(f":red[Has salido de la zona roja hace {str(v_exceso).split('.')[0]}]")
+    else:
+        st.info(f"No hay registros históricos para '{opcion}' en días como hoy.")
+
+# Limpiar estado si no es reflexión
+if opcion != "reflexion":
+    for key in ["texto_reflexion", "emociones_reflexion", "reset_reflexion"]:
+        if key in st.session_state:
+            del st.session_state[key]
+
+# Módulos funcionales completos
 if opcion in [evento_a, evento_b]:
     st.header(f"📍 Registro de evento")
     fecha_hora_evento = datetime.now(colombia)
@@ -359,7 +352,7 @@ if opcion in [evento_a, evento_b]:
     if st.button("☠️ ¿Registrar?"):
         registrar_evento(opcion, fecha_hora_evento)
         st.success(f"Evento '{seleccion}' registrado a las {fecha_hora_evento.strftime('%H:%M:%S')}")
-        st.rerun()
+        st.experimental_rerun()
 
     mostrar_racha(opcion, seleccion.split()[0])
 
@@ -370,7 +363,7 @@ elif opcion == "reflexion":
         st.session_state["texto_reflexion"] = ""
         st.session_state["emociones_reflexion"] = []
         st.session_state["reset_reflexion"] = False
-        st.rerun()
+        st.experimental_rerun()
 
     ultima = coleccion_reflexiones.find_one({}, sort=[("fecha_hora", -1)])
     if ultima:
@@ -399,7 +392,7 @@ elif opcion == "reflexion":
             categoria_asignada = guardar_reflexion(fecha_hora_reflexion, emociones, texto_reflexion)
             st.success(f"Reflexión guardada con categoría: {categoria_asignada}")
             st.session_state["reset_reflexion"] = True
-            st.rerun()
+            st.experimental_rerun()
 
 elif opcion == "historial":
     st.header("📑 Historial completo")
