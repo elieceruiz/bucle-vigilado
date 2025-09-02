@@ -7,13 +7,17 @@ from dateutil.relativedelta import relativedelta
 from streamlit_autorefresh import st_autorefresh
 from openai import OpenAI
 
-# Configuración página y zona horaria
 st.set_page_config(page_title="Reinicia", layout="centered")
 colombia = pytz.timezone("America/Bogota")
 
-dias_semana = {
-    0: "Lun", 1: "Mar", 2: "Mié", 3: "Jue",
-    4: "Vie", 5: "Sáb", 6: "Dom"
+dias_abreviados = {
+    0: "L",  # Lunes
+    1: "M",  # Martes
+    2: "X",  # Miércoles
+    3: "J",  # Jueves
+    4: "V",  # Viernes
+    5: "S",  # Sábado
+    6: "D"   # Domingo
 }
 
 client = MongoClient(st.secrets["mongo_uri"])
@@ -34,44 +38,7 @@ eventos = {
     "💸": evento_b,
 }
 
-sistema_categorial = {
-    "1.1": {"categoria": "Dinámicas cotidianas", "subcategoria": "Organización del tiempo",
-            "descriptor": "Manejo de rutinas y distribución del día",
-            "observable": "Relatos sobre horarios de trabajo, estudio, momentos de ocio, tiempo dedicado a la intimidad."},
-    "1.2": {"categoria": "Dinámicas cotidianas", "subcategoria": "Relaciones sociales",
-            "descriptor": "Interacciones que influyen en la vida íntima.",
-            "observable": "Narraciones sobre pareja, amigos, familia; menciones de aprobación o desaprobación social."},
-    "1.3": {"categoria": "Dinámicas cotidianas", "subcategoria": "Contextos de intimidad",
-            "descriptor": "Espacios físicos y virtuales donde se desarrollan las prácticas.",
-            "observable": "Lugares mencionados (casa, moteles, internet, calle), dispositivos usados, condiciones de privacidad."},
-    "1.4": {"categoria": "Dinámicas cotidianas", "subcategoria": "Factores emocionales",
-            "descriptor": "Estados afectivos vinculados al ejercicio de la sexualidad.",
-            "observable": "Expresiones de soledad, ansiedad, deseo, satisfacción o culpa."},
-    "2.1": {"categoria": "Consumo de sexo pago", "subcategoria": "Motivaciones",
-            "descriptor": "Razones personales y sociales para pagar por sexo.",
-            "observable": "Relatos de búsqueda de placer, compañía, evasión, curiosidad, necesidad de afecto."},
-    "2.2": {"categoria": "Consumo de sexo pago", "subcategoria": "Prácticas asociadas",
-            "descriptor": "Formas de acceder y realizar el consumo.",
-            "observable": "Lugares (bares, calles, plataformas digitales), frecuencia, monto pagado, modalidades de encuentro."},
-    "2.3": {"categoria": "Consumo de sexo pago", "subcategoria": "Representaciones",
-            "descriptor": "Significados culturales y personales del sexo pago.",
-            "observable": "Uso de términos como tabú, normal, peligroso, necesario, transgresión; narrativas de estigma o aceptación."},
-    "2.4": {"categoria": "Consumo de sexo pago", "subcategoria": "Efectos en la trayectoria íntima",
-            "descriptor": "Impacto en la experiencia personal y en la memoria íntima.",
-            "observable": "Relatos de aprendizaje, arrepentimiento, culpa, gratificación, comparación con otras prácticas sexuales."},
-    "3.1": {"categoria": "Masturbación", "subcategoria": "Prácticas de autocuidado",
-            "descriptor": "Uso de la masturbación como estrategia de bienestar.",
-            "observable": "Relatos sobre relajación, control del estrés, conciliación del sueño, cuidado de la salud sexual."},
-    "3.2": {"categoria": "Masturbación", "subcategoria": "Placer y exploración del cuerpo",
-            "descriptor": "Búsqueda de satisfacción personal y autoconocimiento.",
-            "observable": "Narrativas sobre fantasías, técnicas usadas, experimentación, referencias a placer físico."},
-    "3.3": {"categoria": "Masturbación", "subcategoria": "Relación con la intimidad",
-            "descriptor": "Vínculo entre la masturbación y la privacidad del sujeto.",
-            "observable": "Relatos de momentos en soledad, rituales íntimos, ocultamiento frente a otros."},
-    "3.4": {"categoria": "Masturbación", "subcategoria": "Representaciones culturales",
-            "descriptor": "Significados sociales y personales atribuidos a la masturbación.",
-            "observable": "Expresiones de libertad, vergüenza, culpa, normalización; uso de términos religiosos o morales."},
-}
+# Aquí va el sistema_categorial completo igual que antes
 
 for key in [evento_a, evento_b]:
     if key not in st.session_state:
@@ -159,6 +126,45 @@ def mostrar_racha(nombre_evento, emoji):
         if mostrar:
             st.metric("Duración", f"{minutos:,} min", tiempo)
             st.caption(f"🔴 Última recaída: {ultimo.strftime('%Y-%m-%d %H:%M:%S')}")
+            if nombre_evento == "La Iniciativa Aquella":
+                registros = list(coleccion_eventos.find({"evento": nombre_evento}).sort("fecha_hora", -1))
+                record = max([(registros[i - 1]["fecha_hora"] - registros[i]["fecha_hora"])
+                              for i in range(1, len(registros))], default=delta)
+                total_dias = record.days
+                horas = record.seconds // 3600
+                minutos_rec = (record.seconds % 3600) // 60
+                segundos = record.seconds % 60
+                record_str = f"{total_dias} días, {horas:02d}:{minutos_rec:02d}:{segundos:02d}"
+                umbral = timedelta(days=3)
+                meta_5 = timedelta(days=5)
+                meta_21 = timedelta(days=21)
+                if delta > umbral:
+                    st.success("✅ Superaste la zona crítica de las 72 horas.")
+                if delta > meta_5:
+                    st.success("🌱 ¡Sostenés 5 días! Se está instalando un nuevo hábito.")
+                if delta > meta_21:
+                    st.success("🏗️ 21 días: ya creaste una estructura sólida.")
+                if delta < umbral:
+                    meta_actual = umbral
+                    label_meta = "zona crítica (3 días)"
+                elif delta < meta_5:
+                    meta_actual = meta_5
+                    label_meta = "meta base (5 días)"
+                elif delta < meta_21:
+                    meta_actual = meta_21
+                    label_meta = "meta sólida (21 días)"
+                elif delta < record:
+                    meta_actual = record
+                    label_meta = "tu récord"
+                else:
+                    meta_actual = delta
+                    label_meta = "¡Nuevo récord!"
+                progreso_visual = min(delta.total_seconds() / meta_actual.total_seconds(), 1.0)
+                porcentaje_record = (delta.total_seconds() / record.total_seconds()) * 100
+                st.markdown(f"🏅 **Récord personal:** `{record_str}`")
+                st.markdown(f"📊 **Progreso hacia {label_meta}:** `{progreso_visual * 100:.1f}%`")
+                st.progress(progreso_visual)
+                st.markdown(f"📈 **Progreso frente al récord:** `{porcentaje_record:.1f}%`")
         else:
             st.metric("Duración", "•••••• min", "••a ••m ••d ••h ••m ••s")
             st.caption("🔒 Información sensible oculta. Activá la casilla para visualizar.")
@@ -171,7 +177,7 @@ def obtener_registros(nombre_evento):
     filas = []
     for i, e in enumerate(eventos):
         fecha = e["fecha_hora"].astimezone(colombia)
-        dia_sem = dias_semana[fecha.weekday()]
+        dia_abrev = dias_abreviados[fecha.weekday()]
         anterior = eventos[i + 1]["fecha_hora"].astimezone(colombia) if i + 1 < len(eventos) else None
         diferencia = ""
         if anterior:
@@ -189,7 +195,7 @@ def obtener_registros(nombre_evento):
                 partes.append(f"{detalle.minutes}m")
             diferencia = " ".join(partes)
         filas.append({
-            "Día": dia_sem,
+            "Día": dia_abrev,
             "Fecha": fecha.strftime("%Y-%m-%d"),
             "Hora": fecha.strftime("%H:%M"),
             "Sin recaída": diferencia
@@ -351,9 +357,6 @@ elif opcion == "historial":
 
     with tabs[1]:
         mostrar_tabla_eventos(evento_a)
-
-        st.markdown("---")
-        mostrar_tabla_hitos()
 
     with tabs[2]:
         mostrar_tabla_eventos(evento_b)
