@@ -12,7 +12,7 @@ from collections import Counter
 st.set_page_config(page_title="Reinicia", layout="centered")
 colombia = pytz.timezone("America/Bogota")
 
-# Conexion a MongoDB
+# Conexión a MongoDB
 client = MongoClient(st.secrets["mongo_uri"])
 db = client["registro_bucle"]
 coleccion_eventos = db["eventos"]
@@ -21,7 +21,7 @@ coleccion_reflexiones = db["reflexiones"]
 # Cliente OpenAI
 openai_client = OpenAI(api_key=st.secrets["openai_api_key"])
 
-# Definicion de eventos
+# Definición de eventos
 evento_a = "La Iniciativa Aquella"
 evento_b = "La Iniciativa de Pago"
 eventos = {
@@ -31,7 +31,7 @@ eventos = {
     "💸": evento_b,
 }
 
-# Sistema categorial completo sin omisiones
+# Sistema categorial completo literal
 sistema_categorial = {
     "1.1": {"categoria": "Dinámicas cotidianas", "subcategoria": "Organización del tiempo",
             "descriptor": "Manejo de rutinas y distribución del día",
@@ -71,6 +71,7 @@ sistema_categorial = {
             "observable": "Expresiones de libertad, vergüenza, culpa, normalización; uso de términos religiosos o morales."},
 }
 
+# Inicialización en session_state
 for key in [evento_a, evento_b]:
     if key not in st.session_state:
         evento = coleccion_eventos.find_one({"evento": key}, sort=[("fecha_hora", -1)])
@@ -84,12 +85,10 @@ def clasificar_reflexion_openai(texto_reflexion: str) -> str:
 1.2 Relaciones sociales
 1.3 Contextos de intimidad
 1.4 Factores emocionales
-
 2.1 Motivaciones
 2.2 Prácticas asociadas
 2.3 Representaciones
 2.4 Efectos en la trayectoria íntima
-
 3.1 Prácticas de autocuidado
 3.2 Placer y exploración del cuerpo
 3.3 Relación con la intimidad
@@ -121,7 +120,7 @@ def guardar_reflexion(fecha_hora, emociones, reflexion):
 
 def registrar_evento(nombre_evento, fecha_hora):
     dia_local = fecha_hora.astimezone(colombia)
-    dia_semana = dia_local.weekday()  # 0=lunes,...6=domingo
+    dia_semana = dia_local.weekday()
     coleccion_eventos.insert_one({"evento": nombre_evento, "fecha_hora": fecha_hora, "dia_semana": dia_semana})
     st.session_state[nombre_evento] = fecha_hora
 
@@ -292,9 +291,19 @@ def obtener_horas_de_tabla_historial(df, col_fecha="Fecha", col_hora="Hora"):
     horas = sorted(df_filtrado[col_hora].tolist())
     return horas
 
+# UI inicio
 st.title("Reinicia")
 seleccion = st.selectbox("Seleccioná qué registrar o consultar:", list(eventos.keys()))
 opcion = eventos[seleccion]
+
+df_historial_eventos = obtener_registros(opcion)
+horas = obtener_horas_de_tabla_historial(df_historial_eventos)
+
+# Mostrar mensaje horas ordenadas justo debajo selectbox, en rojo si hay datos
+if horas:
+    st.markdown(":red[Históricamente tus eventos en este día ocurren a las horas (ordenadas): " + ", ".join(horas) + "]")
+else:
+    st.markdown("No hay registros históricos para este día en este evento.")
 
 if opcion != "reflexion":
     for key in ["texto_reflexion", "emociones_reflexion", "reset_reflexion"]:
@@ -311,14 +320,6 @@ if opcion in [evento_a, evento_b]:
         st.experimental_rerun()
 
     mostrar_racha(opcion, seleccion.split()[0])
-
-    # Obtener las horas ordenadas del día de hoy para el evento y mostrar mensaje
-    df_historial_eventos = obtener_registros(opcion)
-    horas = obtener_horas_de_tabla_historial(df_historial_eventos)
-    if horas:
-        st.info("Históricamente tus eventos en este día ocurren a las horas (ordenadas): " + ", ".join(horas))
-    else:
-        st.info("No hay registros históricos para este día en este evento.")
 
 elif opcion == "reflexion":
     st.header("🧠 Registrar reflexión")
@@ -357,6 +358,7 @@ elif opcion == "reflexion":
             st.success(f"Reflexión guardada con categoría: {categoria_asignada}")
             st.session_state["reset_reflexion"] = True
             st.experimental_rerun()
+
 elif opcion == "historial":
     st.header("📑 Historial completo")
     tabs = st.tabs(["🧠 Reflexiones", "✊🏽", "💸"])
