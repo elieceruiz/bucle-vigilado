@@ -79,7 +79,6 @@ for key in [evento_a, evento_b]:
         if evento:
             st.session_state[key] = evento["fecha_hora"].astimezone(colombia)
 
-# Clasificar reflexión con OpenAI
 def clasificar_reflexion_openai(texto_reflexion: str) -> str:
     prompt = f"""Sistema categorial para clasificar reflexiones:
 
@@ -111,7 +110,6 @@ Respuesta sólo con el código, ejemplo: 1.4
     )
     return response.choices[0].message.content.strip()
 
-# Guardar reflexión
 def guardar_reflexion(fecha_hora, emociones, reflexion):
     categoria_auto = clasificar_reflexion_openai(reflexion)
     doc = {
@@ -123,12 +121,10 @@ def guardar_reflexion(fecha_hora, emociones, reflexion):
     coleccion_reflexiones.insert_one(doc)
     return categoria_auto
 
-# Registrar evento
 def registrar_evento(nombre_evento, fecha_hora):
     coleccion_eventos.insert_one({"evento": nombre_evento, "fecha_hora": fecha_hora})
     st.session_state[nombre_evento] = fecha_hora
 
-# Mostrar racha con lógica optimizada (cronómetro en bucle sin parpadeo)
 def mostrar_racha(nombre_evento, emoji):
     clave_estado = f"mostrar_racha_{nombre_evento}"
     if clave_estado not in st.session_state:
@@ -140,9 +136,11 @@ def mostrar_racha(nombre_evento, emoji):
     if nombre_evento in st.session_state and mostrar:
         ultimo = st.session_state[nombre_evento]
         placeholder = st.empty()
-        detener = False
 
-        for i in range(100000):
+        for _ in range(100000):
+            if not st.session_state[clave_estado]:
+                break
+
             ahora = datetime.now(colombia)
             delta = ahora - ultimo
             detalle = relativedelta(ahora, ultimo)
@@ -164,16 +162,9 @@ def mostrar_racha(nombre_evento, emoji):
                 dia_es = dias_semana_es.get(dia, dia)
                 st.caption(f"🔴 Última recaída: {dia_es} {ultimo.strftime('%d-%m-%y %H:%M:%S')}")
 
-                if st.button("Detener actualización", key=f"stop_{nombre_evento}"):
-                    detener = True
-
-            if detener:
-                break
-
             time.sleep(1)
 
         placeholder.empty()
-
     elif not mostrar:
         st.metric("Duración", "•••••• min", "••a ••m ••d ••h ••m ••s")
         st.caption("🔒 Información sensible oculta. Activá la casilla para visualizar.")
@@ -181,9 +172,8 @@ def mostrar_racha(nombre_evento, emoji):
         st.metric("Duración", "0 min")
         st.caption("0a 0m 0d 0h 0m 0s")
 
-# Obtener registros para tabla
 def obtener_registros(nombre_evento):
-    letras_dia = {0:"L", 1:"M", 2:"X", 3:"J", 4:"V", 5:"S", 6:"D"}
+    letras_dia = {0: "L", 1: "M", 2: "X", 3: "J", 4: "V", 5: "S", 6: "D"}
     eventos = list(coleccion_eventos.find({"evento": nombre_evento}).sort("fecha_hora", -1))
     filas = []
     for i, e in enumerate(eventos):
@@ -213,7 +203,6 @@ def obtener_registros(nombre_evento):
         })
     return pd.DataFrame(filas)
 
-# Obtener reflexiones para historial
 def obtener_reflexiones():
     docs = list(coleccion_reflexiones.find({}).sort("fecha_hora", -1))
     rows = []
@@ -241,7 +230,6 @@ def obtener_reflexiones():
         })
     return pd.DataFrame(rows)
 
-# Mostrar tabla eventos
 def mostrar_tabla_eventos(nombre_evento):
     st.subheader(f"📍 Registros")
     df = obtener_registros(nombre_evento)
@@ -267,7 +255,6 @@ def mostrar_tabla_eventos(nombre_evento):
         st.dataframe(df_oculto, use_container_width=True, hide_index=True)
         st.caption("🔒 Registros ocultos. Activá la casilla para visualizar.")
 
-# Mostrar estado zona roja o verde
 def mostrar_estado_zona_roja_con_colores(opcion, coleccion_eventos):
     dia_semana_actual = datetime.now(colombia).weekday()
 
@@ -319,7 +306,7 @@ elif opcion == "reflexion":
         st.session_state["texto_reflexion"] = ""
         st.session_state["emociones_reflexion"] = []
         st.session_state["reset_reflexion"] = False
-        st.experimental_rerun()
+        st.rerun()
 
     ultima = coleccion_reflexiones.find_one({}, sort=[("fecha_hora", -1)])
     if ultima:
@@ -348,7 +335,7 @@ elif opcion == "reflexion":
             categoria_asignada = guardar_reflexion(fecha_hora_reflexion, emociones, texto_reflexion)
             st.success(f"Reflexión guardada con categoría: {categoria_asignada}")
             st.session_state["reset_reflexion"] = True
-            st.experimental_rerun()
+            st.rerun()
 
 elif opcion == "historial":
     st.header("📑 Historial completo")
