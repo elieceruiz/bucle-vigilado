@@ -34,7 +34,7 @@ dias_semana = {
 }
 
 sistema_categorial = {
-    # mantiene igual que en el código previo
+    # Igual que antes
 }
 
 for key in [evento_a, evento_b]:
@@ -45,7 +45,7 @@ for key in [evento_a, evento_b]:
 
 def clasificar_reflexion_openai(texto_reflexion: str) -> str:
     prompt = f"""Sistema categorial para clasificar reflexiones:
-    ..."""  # igual que antes
+    ..."""  # Igual que antes
     response = openai_client.chat.completions.create(
         model="gpt-4o-mini",
         messages=[{"role": "user", "content": prompt}],
@@ -72,21 +72,20 @@ def registrar_evento(nombre_evento, fecha_hora):
 def validar_y_registrar_hitos():
     registros = list(coleccion_eventos.find({"evento": evento_a}).sort("fecha_hora", 1))
     hitos_existentes = list(coleccion_hitos.find({"evento": evento_a}))
-    hitos_actuales = {hito.get("hito") for hito in hitos_existentes}
+    hitos_actuales = {hito.get("desde"): hito.get("hito") for hito in hitos_existentes}
     hitos_agregados = False
     for i in range(1, len(registros)):
-        dif = registros[i]["fecha_hora"] - registros[i-1]["fecha_hora"]
-        dias = dif.days
-        if dias >= 3:
-            nuevo_hito = f"{dias} días"
-            if nuevo_hito not in hitos_actuales:
-                coleccion_hitos.insert_one({
-                    "evento": evento_a,
-                    "hito": nuevo_hito,
-                    "desde": registros[i-1]["fecha_hora"],
-                    "fecha_registro": datetime.now(colombia)
-                })
-                hitos_agregados = True
+        inicio = registros[i-1]["fecha_hora"]
+        fin = registros[i]["fecha_hora"]
+        dias = (fin - inicio).days
+        nuevo_hito = f"{dias} días"
+        if inicio not in hitos_actuales or hitos_actuales.get(inicio) != nuevo_hito:
+            coleccion_hitos.replace_one(
+                {"evento": evento_a, "desde": inicio},
+                {"evento": evento_a, "hito": nuevo_hito, "desde": inicio, "fecha_registro": fin},
+                upsert=True
+            )
+            hitos_agregados = True
     if hitos_agregados:
         st.experimental_rerun()
 
@@ -208,7 +207,7 @@ def mostrar_tabla_eventos(nombre_evento):
 def mostrar_tabla_hitos():
     st.subheader("📍 Historial de hitos")
     mostrar = st.checkbox("Ver/Ocultar hitos", value=False, key="mostrar_hitos")
-    df_hitos = obtener_hitos()
+    df_hitos = obtener_hitos().reset_index(drop=True)
     if mostrar:
         st.dataframe(df_hitos.style.hide(axis="index"), use_container_width=True)
     else:
@@ -217,7 +216,7 @@ def mostrar_tabla_hitos():
         df_oculto["Registro"] = "••••-••-•• ••:••"
         df_oculto["Hito"] = "•••"
         st.dataframe(df_oculto.style.hide(axis="index"), use_container_width=True)
-        st.caption("🔒 Hitos ocultos. Activá la casilla para visualizar()")
+        st.caption("🔒 Hitos ocultos. Activá la casilla para visualizar")
 
 st.title("Reinicia")
 seleccion = st.selectbox("Seleccioná qué registrar o consultar:", list(eventos.keys()))
