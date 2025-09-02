@@ -274,19 +274,29 @@ def formatear_subcategoria(codigo_sub):
             return f"{codigo} {codigo_sub}"
     return codigo_sub
 
-# Mostrar tabla eventos con opción ocultar
+# Mostrar tabla eventos con opción ocultar y total con punticos mientras esté oculta
 def mostrar_tabla_eventos(nombre_evento):
     st.subheader(f"📍 Registros")
-    mostrar = st.checkbox("Ver/Ocultar registros", value=False, key=f"mostrar_{nombre_evento}")
     df = obtener_registros(nombre_evento)
+    total_registros = len(df)
+
+    def ocultar_numero_con_punticos(numero):
+        return "•" * len(str(numero))
+
+    mostrar = st.checkbox("Ver/Ocultar registros", value=False, key=f"mostrar_{nombre_evento}")
+
+    total_mostrar = str(total_registros) if mostrar else ocultar_numero_con_punticos(total_registros)
+    st.markdown(f"**Total de registros:** {total_mostrar}")
+
     if mostrar:
         st.dataframe(df, use_container_width=True, hide_index=True)
     else:
-        df_oculto = df.copy()
-        df_oculto["Fecha"] = "••••-••-••"
-        df_oculto["Hora"] = "••:••"
-        df_oculto["Sin recaída"] = "••a ••m ••d ••h ••m"
-        df_oculto["Día"] = "•"
+        df_oculto = pd.DataFrame({
+            "Día": ["•"] * total_registros,
+            "Fecha": ["••-••-••"] * total_registros,
+            "Hora": ["••:••"] * total_registros,
+            "Sin recaída": ["••a ••m ••d ••h ••m"] * total_registros
+        })
         st.dataframe(df_oculto, use_container_width=True, hide_index=True)
         st.caption("🔒 Registros ocultos. Activá la casilla para visualizar.")
 
