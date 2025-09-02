@@ -4,8 +4,8 @@ from pymongo import MongoClient
 import pytz
 import pandas as pd
 from dateutil.relativedelta import relativedelta
-from streamlit_autorefresh import st_autorefresh
 from openai import OpenAI
+import time
 
 # Configuración página y zona horaria
 st.set_page_config(page_title="Reinicia", layout="centered")
@@ -128,7 +128,7 @@ def registrar_evento(nombre_evento, fecha_hora):
     coleccion_eventos.insert_one({"evento": nombre_evento, "fecha_hora": fecha_hora})
     st.session_state[nombre_evento] = fecha_hora
 
-# Mostrar racha con métricas y progreso
+# Mostrar racha con lógica optimizada (cronómetro en bucle sin parpadeo)
 def mostrar_racha(nombre_evento, emoji):
     clave_estado = f"mostrar_racha_{nombre_evento}"
     if clave_estado not in st.session_state:
@@ -136,72 +136,47 @@ def mostrar_racha(nombre_evento, emoji):
     mostrar = st.checkbox("Ver/ocultar racha", value=st.session_state[clave_estado], key=f"check_{nombre_evento}")
     st.session_state[clave_estado] = mostrar
     st.markdown("### ⏱️ Racha")
-    if nombre_evento in st.session_state:
-        st_autorefresh(interval=1000, limit=None, key=f"auto_{nombre_evento}")
+
+    if nombre_evento in st.session_state and mostrar:
         ultimo = st.session_state[nombre_evento]
-        ahora = datetime.now(colombia)
-        delta = ahora - ultimo
-        detalle = relativedelta(ahora, ultimo)
-        minutos = int(delta.total_seconds() // 60)
-        tiempo = f"{detalle.years}a {detalle.months}m {detalle.days}d {detalle.hours}h {detalle.minutes}m {detalle.seconds}s"
-        
-        dias_semana_es = {
-            "Monday": "Lunes",
-            "Tuesday": "Martes",
-            "Wednesday": "Miércoles",
-            "Thursday": "Jueves",
-            "Friday": "Viernes",
-            "Saturday": "Sábado",
-            "Sunday": "Domingo"
-        }
-        dia = ultimo.strftime('%A')
-        dia_es = dias_semana_es.get(dia, dia)
-        
-        if mostrar:
-            st.metric("Duración", f"{minutos:,} min", tiempo)
-            st.caption(f"🔴 Última recaída: {dia_es} {ultimo.strftime('%d-%m-%y %H:%M:%S')}")
-            if nombre_evento == "La Iniciativa Aquella":
-                registros = list(coleccion_eventos.find({"evento": nombre_evento}).sort("fecha_hora", -1))
-                record = max([(registros[i - 1]["fecha_hora"] - registros[i]["fecha_hora"])
-                              for i in range(1, len(registros))], default=delta)
-                total_dias = record.days
-                horas = record.seconds // 3600
-                minutos_rec = (record.seconds % 3600) // 60
-                segundos = record.seconds % 60
-                record_str = f"{total_dias} días, {horas:02d}:{minutos_rec:02d}:{segundos:02d}"
-                umbral = timedelta(days=3)
-                meta_5 = timedelta(days=5)
-                meta_21 = timedelta(days=21)
-                if delta > umbral:
-                    st.success("✅ Superaste la zona crítica de las 72 horas.")
-                if delta > meta_5:
-                    st.success("🌱 ¡Sostenés 5 días! Se está instalando un nuevo hábito.")
-                if delta > meta_21:
-                    st.success("🏗️ 21 días: ya creaste una estructura sólida.")
-                if delta < umbral:
-                    meta_actual = umbral
-                    label_meta = "zona crítica (3 días)"
-                elif delta < meta_5:
-                    meta_actual = meta_5
-                    label_meta = "meta base (5 días)"
-                elif delta < meta_21:
-                    meta_actual = meta_21
-                    label_meta = "meta sólida (21 días)"
-                elif delta < record:
-                    meta_actual = record
-                    label_meta = "tu récord"
-                else:
-                    meta_actual = delta
-                    label_meta = "¡Nuevo récord!"
-                progreso_visual = min(delta.total_seconds() / meta_actual.total_seconds(), 1.0)
-                porcentaje_record = (delta.total_seconds() / record.total_seconds()) * 100
-                st.markdown(f"🏅 **Récord personal:** `{record_str}`")
-                st.markdown(f"📊 **Progreso hacia {label_meta}:** `{progreso_visual * 100:.1f}%`")
-                st.progress(progreso_visual)
-                st.markdown(f"📈 **Progreso frente al récord:** `{porcentaje_record:.1f}%`")
-        else:
-            st.metric("Duración", "•••••• min", "••a ••m ••d ••h ••m ••s")
-            st.caption("🔒 Información sensible oculta. Activá la casilla para visualizar.")
+        placeholder = st.empty()
+        detener = False
+
+        for i in range(100000):
+            ahora = datetime.now(colombia)
+            delta = ahora - ultimo
+            detalle = relativedelta(ahora, ultimo)
+            minutos = int(delta.total_seconds() // 60)
+            tiempo = f"{detalle.years}a {detalle.months}m {detalle.days}d {detalle.hours}h {detalle.minutes}m {detalle.seconds}s"
+
+            with placeholder.container():
+                st.metric("Duración", f"{minutos:,} min", tiempo)
+                dia = ultimo.strftime('%A')
+                dias_semana_es = {
+                    "Monday": "Lunes",
+                    "Tuesday": "Martes",
+                    "Wednesday": "Miércoles",
+                    "Thursday": "Jueves",
+                    "Friday": "Viernes",
+                    "Saturday": "Sábado",
+                    "Sunday": "Domingo"
+                }
+                dia_es = dias_semana_es.get(dia, dia)
+                st.caption(f"🔴 Última recaída: {dia_es} {ultimo.strftime('%d-%m-%y %H:%M:%S')}")
+
+                if st.button("Detener actualización", key=f"stop_{nombre_evento}"):
+                    detener = True
+
+            if detener:
+                break
+
+            time.sleep(1)
+
+        placeholder.empty()
+
+    elif not mostrar:
+        st.metric("Duración", "•••••• min", "••a ••m ••d ••h ••m ••s")
+        st.caption("🔒 Información sensible oculta. Activá la casilla para visualizar.")
     else:
         st.metric("Duración", "0 min")
         st.caption("0a 0m 0d 0h 0m 0s")
