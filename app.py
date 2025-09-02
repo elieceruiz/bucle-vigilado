@@ -43,7 +43,7 @@ coleccion_visual = db["log_visual"]
 # Cliente OpenAI
 openai_client = OpenAI(api_key=st.secrets["openai_api_key"])
 
-# Eventos definidos
+# Eventos
 evento_a = "La Iniciativa Aquella"
 evento_b = "La Iniciativa de Pago"
 eventos = {
@@ -100,7 +100,6 @@ for key in [evento_a, evento_b]:
         if evento:
             st.session_state[key] = evento["fecha_hora"].astimezone(colombia)
 
-# Clasificar reflexión con OpenAI
 def clasificar_reflexion_openai(texto_reflexion: str) -> str:
     prompt = f"""Sistema categorial para clasificar reflexiones:
 
@@ -132,7 +131,6 @@ Respuesta sólo con el código, ejemplo: 1.4
     )
     return response.choices[0].message.content.strip()
 
-# Guardar reflexión
 def guardar_reflexion(fecha_hora, emociones, reflexion):
     categoria_auto = clasificar_reflexion_openai(reflexion)
     doc = {
@@ -144,12 +142,10 @@ def guardar_reflexion(fecha_hora, emociones, reflexion):
     coleccion_reflexiones.insert_one(doc)
     return categoria_auto
 
-# Registrar evento
 def registrar_evento(nombre_evento, fecha_hora):
     coleccion_eventos.insert_one({"evento": nombre_evento, "fecha_hora": fecha_hora})
     st.session_state[nombre_evento] = fecha_hora
 
-# Obtener registros para tabla, con abreviatura de día 3 letras
 def obtener_registros(nombre_evento):
     eventos = list(coleccion_eventos.find({"evento": nombre_evento}).sort("fecha_hora", -1))
     filas = []
@@ -180,14 +176,12 @@ def obtener_registros(nombre_evento):
         })
     return pd.DataFrame(filas)
 
-# Contar recaídas para día de la semana actual
 def contar_recaidas_dia_actual(nombre_evento):
     df = obtener_registros(nombre_evento)
     dia_semana_actual = dias_semana_3letras[datetime.now(colombia).weekday()]
     recaidas = df[df["Día"] == dia_semana_actual].shape[0]
     return recaidas
 
-# Obtener estadísticas para un día como hoy
 def obtener_estadisticas_evento(nombre_evento):
     eventos_lista = list(coleccion_eventos.find({"evento": nombre_evento}))
     if not eventos_lista:
@@ -210,7 +204,6 @@ def obtener_estadisticas_evento(nombre_evento):
         hora_texto = f"Rango horario de la hora {min_h:02d}:{min_m:02d} a la hora {max_h:02d}:{max_m:02d}"
     return hoy_es, recaidas, hora_texto
 
-# Mostrar racha con métricas y progreso
 def mostrar_racha(nombre_evento, emoji):
     clave_estado = f"mostrar_racha_{nombre_evento}"
     if clave_estado not in st.session_state:
@@ -233,8 +226,7 @@ def mostrar_racha(nombre_evento, emoji):
             st.caption(f"🔴 Última recaída: {dia_es} {ultimo.strftime('%d-%m-%y %H:%M:%S')}")
             if nombre_evento == "La Iniciativa Aquella":
                 registros = list(coleccion_eventos.find({"evento": nombre_evento}).sort("fecha_hora", -1))
-                record = max([(registros[i - 1]["fecha_hora"] - registros[i]["fecha_hora"])
-                              for i in range(1, len(registros))], default=delta)
+                record = max([(registros[i - 1]["fecha_hora"] - registros[i]["fecha_hora"]) for i in range(1, len(registros))], default=delta)
                 total_dias = record.days
                 horas = record.seconds // 3600
                 minutos_rec = (record.seconds % 3600) // 60
@@ -309,20 +301,24 @@ seleccion = st.selectbox("Seleccioná qué registrar o consultar:", list(eventos
 opcion = eventos[seleccion]
 
 if opcion in [evento_a, evento_b]:
-    recaidas_hoy = contar_recaidas_dia_actual(opcion)
     dia_semana_hoy = dias_semana_es[datetime.now(colombia).strftime('%A')]
-    if recaidas_hoy > 0:
-        if recaidas_hoy == 1:
-            st.error(f"❗ Atención: hay 1 recaída registrada para un día como hoy {dia_semana_hoy}.")
-        else:
-            st.error(f"❗ Atención: hay {recaidas_hoy} recaídas registradas para un día como hoy {dia_semana_hoy}.")
+    df_registros = obtener_registros(opcion)
+    df_dia = df_registros[df_registros["Día"] == dias_semana_3letras[datetime.now(colombia).weekday()]]
+    recaidas_hoy = len(df_dia)
+    if recaidas_hoy == 1:
+        hora_min = hora_max = df_dia.iloc[0]["Hora"]
+        st.error(f"❗ Atención: hay 1 recaída registrada para un día como hoy {dia_semana_hoy} a las {hora_min}.")
+    elif recaidas_hoy > 1:
+        hora_min = df_dia["Hora"].min()
+        hora_max = df_dia["Hora"].max()
+        st.error(f"❗ Atención: hay {recaidas_hoy} recaídas registradas para un día como hoy {dia_semana_hoy} entre las {hora_min} y las {hora_max}.")
     else:
         info = obtener_estadisticas_evento(opcion)
         if info:
             dia_semana, _, hora_texto = info
-            st.success(f"Hoy es: {dia_semana}\n ➔ Recaídas: {recaidas_hoy}\n ➔ {hora_texto}")
+            st.success(f"Hoy es: {dia_semana}\n ➔ Recaídas: 0\n ➔ {hora_texto}")
         else:
-            st.error("No hay registros para mostrar estadísticas.")
+            st.success(f"Hoy es: {dia_semana_hoy}\n ➔ Recaídas: 0\n ➔ Sin registros para mostrar rango horario.")
 
 if opcion != "reflexion":
     for key in ["texto_reflexion", "emociones_reflexion", "reset_reflexion"]:
