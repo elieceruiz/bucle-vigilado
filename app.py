@@ -144,9 +144,23 @@ def mostrar_racha(nombre_evento, emoji):
         detalle = relativedelta(ahora, ultimo)
         minutos = int(delta.total_seconds() // 60)
         tiempo = f"{detalle.years}a {detalle.months}m {detalle.days}d {detalle.hours}h {detalle.minutes}m {detalle.seconds}s"
+        
+        # Diccionario para traducción de días en inglés a español
+        dias_semana_es = {
+            "Monday": "Lunes",
+            "Tuesday": "Martes",
+            "Wednesday": "Miércoles",
+            "Thursday": "Jueves",
+            "Friday": "Viernes",
+            "Saturday": "Sábado",
+            "Sunday": "Domingo"
+        }
+        dia = ultimo.strftime('%A')
+        dia_es = dias_semana_es.get(dia, dia)
+        
         if mostrar:
             st.metric("Duración", f"{minutos:,} min", tiempo)
-            st.caption(f"🔴 Última recaída: {ultimo.strftime('%Y-%m-%d %H:%M:%S')}")
+            st.caption(f"🔴 Última recaída: {dia_es} {ultimo.strftime('%d-%m-%y %H:%M:%S')}")
             if nombre_evento == "La Iniciativa Aquella":
                 registros = list(coleccion_eventos.find({"evento": nombre_evento}).sort("fecha_hora", -1))
                 record = max([(registros[i - 1]["fecha_hora"] - registros[i]["fecha_hora"])
@@ -219,7 +233,7 @@ def obtener_registros(nombre_evento):
         dia_semana = letras_dia[fecha.weekday()]
         filas.append({
             "Día": dia_semana,
-            "Fecha": fecha.strftime("%Y-%m-%d"),
+            "Fecha": fecha.strftime("%d-%m-%y"),
             "Hora": fecha.strftime("%H:%M"),
             "Sin recaída": diferencia
         })
@@ -241,7 +255,7 @@ def obtener_reflexiones():
             "observable": ""
         })
         rows.append({
-            "Fecha": fecha.strftime("%Y-%m-%d"),
+            "Fecha": fecha.strftime("%d-%m-%y"),
             "Hora": fecha.strftime("%H:%M"),
             "Emojis": emojis,
             "Emociones": emociones,
@@ -312,7 +326,7 @@ elif opcion == "reflexion":
     ultima = coleccion_reflexiones.find_one({}, sort=[("fecha_hora", -1)])
     if ultima:
         fecha = ultima["fecha_hora"].astimezone(colombia)
-        st.caption(f"📌 Última registrada: {fecha.strftime('%Y-%m-%d %H:%M:%S')}")
+        st.caption(f"📌 Última registrada: {fecha.strftime('%d-%m-%y %H:%M:%S')}")
 
     fecha_hora_reflexion = datetime.now(colombia)
 
