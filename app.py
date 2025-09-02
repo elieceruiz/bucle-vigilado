@@ -11,7 +11,11 @@ from openai import OpenAI
 st.set_page_config(page_title="Reinicia", layout="centered")
 colombia = pytz.timezone("America/Bogota")
 
-# Conexión MongoDB
+dias_semana = {
+    0: "Lun", 1: "Mar", 2: "Mié", 3: "Jue",
+    4: "Vie", 5: "Sáb", 6: "Dom"
+}
+
 client = MongoClient(st.secrets["mongo_uri"])
 db = client["registro_bucle"]
 coleccion_eventos = db["eventos"]
@@ -19,11 +23,9 @@ coleccion_reflexiones = db["reflexiones"]
 coleccion_hitos = db["hitos"]
 coleccion_visual = db["log_visual"]
 
-# Cliente OpenAI
 openai_client = OpenAI(api_key=st.secrets["openai_api_key"])
 
-# Eventos definidos
-evento_a = "La Iniciativa Aquella"  # Masturbación
+evento_a = "La Iniciativa Aquella"
 evento_b = "La Iniciativa de Pago"
 eventos = {
     "🧠 Reflexión": "reflexion",
@@ -32,7 +34,6 @@ eventos = {
     "💸": evento_b,
 }
 
-# Sistema categorial para reflexiones
 sistema_categorial = {
     "1.1": {"categoria": "Dinámicas cotidianas", "subcategoria": "Organización del tiempo",
             "descriptor": "Manejo de rutinas y distribución del día",
@@ -72,14 +73,12 @@ sistema_categorial = {
             "observable": "Expresiones de libertad, vergüenza, culpa, normalización; uso de términos religiosos o morales."},
 }
 
-# Inicializar últimos eventos en session_state
 for key in [evento_a, evento_b]:
     if key not in st.session_state:
         evento = coleccion_eventos.find_one({"evento": key}, sort=[("fecha_hora", -1)])
         if evento:
             st.session_state[key] = evento["fecha_hora"].astimezone(colombia)
 
-# Clasificar reflexión con OpenAI
 def clasificar_reflexion_openai(texto_reflexion: str) -> str:
     prompt = f"""Sistema categorial para clasificar reflexiones:
 1.1 Organización del tiempo
@@ -106,7 +105,6 @@ Respuesta sólo con el código, ejemplo: 1.4
     )
     return response.choices[0].message.content.strip()
 
-# Guardar reflexión
 def guardar_reflexion(fecha_hora, emociones, reflexion):
     categoria_auto = clasificar_reflexion_openai(reflexion)
     doc = {
@@ -118,12 +116,10 @@ def guardar_reflexion(fecha_hora, emociones, reflexion):
     coleccion_reflexiones.insert_one(doc)
     return categoria_auto
 
-# Registrar evento
 def registrar_evento(nombre_evento, fecha_hora):
     coleccion_eventos.insert_one({"evento": nombre_evento, "fecha_hora": fecha_hora})
     st.session_state[nombre_evento] = fecha_hora
 
-# Validar y registrar hitos solo para evento masturbación
 def validar_y_registrar_hitos():
     registros = list(coleccion_eventos.find({"evento": evento_a}).sort("fecha_hora", 1))
     hitos_existentes = list(coleccion_hitos.find({"evento": evento_a}))
@@ -145,7 +141,6 @@ def validar_y_registrar_hitos():
     if hitos_agregados:
         st.rerun()
 
-# Mostrar racha con métricas y progreso
 def mostrar_racha(nombre_evento, emoji):
     clave_estado = f"mostrar_racha_{nombre_evento}"
     if clave_estado not in st.session_state:
@@ -171,7 +166,6 @@ def mostrar_racha(nombre_evento, emoji):
         st.metric("Duración", "0 min")
         st.caption("0a 0m 0d 0h 0m 0s")
 
-# Obtener registros para tabla, mostrando día de la semana
 def obtener_registros(nombre_evento):
     eventos = list(coleccion_eventos.find({"evento": nombre_evento}).sort("fecha_hora", -1))
     filas = []
@@ -202,7 +196,6 @@ def obtener_registros(nombre_evento):
         })
     return pd.DataFrame(filas)
 
-# Obtener reflexiones para historial
 def obtener_reflexiones():
     docs = list(coleccion_reflexiones.find({}).sort("fecha_hora", -1))
     rows = []
@@ -230,7 +223,6 @@ def obtener_reflexiones():
         })
     return pd.DataFrame(rows)
 
-# Obtener hitos
 def obtener_hitos():
     docs = list(coleccion_hitos.find({}).sort("fecha_registro", 1))
     filas = []
@@ -249,7 +241,6 @@ def obtener_hitos():
         })
     return pd.DataFrame(filas)
 
-# Mostrar tabla eventos con opción ocultar
 def mostrar_tabla_eventos(nombre_evento):
     st.subheader(f"📍 Registros")
     mostrar = st.checkbox("Ver/Ocultar registros", value=False, key=f"mostrar_{nombre_evento}")
@@ -265,7 +256,6 @@ def mostrar_tabla_eventos(nombre_evento):
         st.dataframe(df_oculto.style.hide(axis="index"), use_container_width=True)
         st.caption("🔒 Registros ocultos. Activá la casilla para visualizar.")
 
-# Mostrar tabla hitos con opción ocultar
 def mostrar_tabla_hitos():
     st.subheader("📍 Historial de hitos")
     mostrar = st.checkbox("Ver/Ocultar hitos", value=False, key="mostrar_hitos")
@@ -280,7 +270,6 @@ def mostrar_tabla_hitos():
         st.table(df_oculto)
         st.caption("🔒 Hitos ocultos. Activá la casilla para visualizar")
 
-# Interfaz principal
 st.title("Reinicia")
 seleccion = st.selectbox("Seleccioná qué registrar o consultar:", list(eventos.keys()))
 opcion = eventos[seleccion]
