@@ -32,6 +32,16 @@ eventos = {
     "💸": evento_b,
 }
 
+dias_semana = {
+    0: "Lun",
+    1: "Mar",
+    2: "Mié",
+    3: "Jue",
+    4: "Vie",
+    5: "Sáb",
+    6: "Dom"
+}
+
 # Sistema categorial para reflexiones
 sistema_categorial = {
     "1.1": {"categoria": "Dinámicas cotidianas", "subcategoria": "Organización del tiempo",
@@ -193,13 +203,13 @@ def mostrar_racha(nombre_evento, emoji):
         st.metric("Duración", "0 min")
         st.caption("0a 0m 0d 0h 0m 0s")
 
-# Obtener registros para tabla, con formato limpio omitiendo ceros
+# Obtener registros para tabla, con día de semana abreviado en español
 def obtener_registros(nombre_evento):
     eventos = list(coleccion_eventos.find({"evento": nombre_evento}).sort("fecha_hora", -1))
     filas = []
-    total = len(eventos)
     for i, e in enumerate(eventos):
         fecha = e["fecha_hora"].astimezone(colombia)
+        dia_sem = dias_semana[fecha.weekday()]
         anterior = eventos[i + 1]["fecha_hora"].astimezone(colombia) if i + 1 < len(eventos) else None
         diferencia = ""
         if anterior:
@@ -217,7 +227,7 @@ def obtener_registros(nombre_evento):
                 partes.append(f"{detalle.minutes}m")
             diferencia = " ".join(partes)
         filas.append({
-            "N°": total - i,
+            "Día": dia_sem,
             "Fecha": fecha.strftime("%Y-%m-%d"),
             "Hora": fecha.strftime("%H:%M"),
             "Sin recaída": diferencia
@@ -252,12 +262,24 @@ def obtener_reflexiones():
         })
     return pd.DataFrame(rows)
 
-# Función para formatear la Subcategoría con código numérico delante
-def formatear_subcategoria(codigo_sub):
-    for codigo, info in sistema_categorial.items():
-        if info["subcategoria"] == codigo_sub:
-            return f"{codigo} {codigo_sub}"
-    return codigo_sub
+# Obtener hitos para mostrar debajo de la tabla en pestaña masturbación (✊🏽)
+def obtener_hitos():
+    docs = list(coleccion_hitos.find({}).sort("fecha_registro", 1))
+    filas = []
+    for d in docs:
+        fecha_inicio = d.get("desde")
+        fecha_registro = d.get("fecha_registro")
+        hito = d.get("hito", "")
+        if fecha_inicio:
+            fecha_inicio = fecha_inicio.astimezone(colombia)
+        if fecha_registro:
+            fecha_registro = fecha_registro.astimezone(colombia)
+        filas.append({
+            "Inicio": fecha_inicio.strftime("%Y-%m-%d %H:%M") if fecha_inicio else "",
+            "Registro": fecha_registro.strftime("%Y-%m-%d %H:%M") if fecha_registro else "",
+            "Hito": hito
+        })
+    return pd.DataFrame(filas)
 
 # Mostrar tabla eventos con opción ocultar
 def mostrar_tabla_eventos(nombre_evento):
@@ -358,6 +380,11 @@ elif opcion == "historial":
 
     with tabs[1]:
         mostrar_tabla_eventos(evento_a)
+
+        st.markdown("---")
+        st.subheader("📍 Historial de hitos")
+        df_hitos = obtener_hitos()
+        st.dataframe(df_hitos, use_container_width=True)
 
     with tabs[2]:
         mostrar_tabla_eventos(evento_b)
