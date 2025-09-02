@@ -139,14 +139,42 @@ def registrar_evento(nombre_evento, fecha_hora):
     coleccion_eventos.insert_one({"evento": nombre_evento, "fecha_hora": fecha_hora})
     st.session_state[nombre_evento] = fecha_hora
 
-def hay_evento_mismo_dia_semana(nombre_evento):
-    dia_hoy = datetime.now(colombia).weekday()
-    eventos = coleccion_eventos.find({"evento": nombre_evento})
-    for e in eventos:
+def obtener_registros(nombre_evento):
+    dias_3letras = {0:"Lun", 1:"Mar", 2:"Mié", 3:"Jue", 4:"Vie", 5:"Sáb", 6:"Dom"}
+    eventos = list(coleccion_eventos.find({"evento": nombre_evento}).sort("fecha_hora", -1))
+    filas = []
+    for i, e in enumerate(eventos):
         fecha = e["fecha_hora"].astimezone(colombia)
-        if fecha.weekday() == dia_hoy:
-            return True
-    return False
+        anterior = eventos[i + 1]["fecha_hora"].astimezone(colombia) if i + 1 < len(eventos) else None
+        diferencia = ""
+        if anterior:
+            detalle = relativedelta(fecha, anterior)
+            partes = []
+            if detalle.years:
+                partes.append(f"{detalle.years}a")
+            if detalle.months:
+                partes.append(f"{detalle.months}m")
+            if detalle.days:
+                partes.append(f"{detalle.days}d")
+            if detalle.hours:
+                partes.append(f"{detalle.hours}h")
+            if detalle.minutes:
+                partes.append(f"{detalle.minutes}m")
+            diferencia = " ".join(partes)
+        dia_semana = dias_3letras[fecha.weekday()]
+        filas.append({
+            "Día": dia_semana,
+            "Fecha": fecha.strftime("%d-%m-%y"),
+            "Hora": fecha.strftime("%H:%M"),
+            "Sin recaída": diferencia
+        })
+    return pd.DataFrame(filas)
+
+def contar_recaidas_dia_actual(nombre_evento):
+    df = obtener_registros(nombre_evento)
+    dia_semana_actual = dias_semana_3letras[datetime.now(colombia).weekday()]
+    recaidas = df[df["Día"] == dia_semana_actual].shape[0]
+    return recaidas
 
 def obtener_estadisticas_evento(nombre_evento):
     eventos_lista = list(coleccion_eventos.find({"evento": nombre_evento}))
@@ -162,7 +190,7 @@ def obtener_estadisticas_evento(nombre_evento):
     else:
         hora_min = min(horas)
         hora_max = max(horas)
-        hora_texto = f"Rango horario: {hora_min:02d}:00 - {hora_max:02d}:59"
+        hora_texto = f"Rango horario de la hora {hora_min:02d}:00 a la hora {hora_max:02d}:59"
     return hoy_es, recaidas, hora_texto
 
 def mostrar_racha(nombre_evento, emoji):
@@ -230,69 +258,6 @@ def mostrar_racha(nombre_evento, emoji):
         st.metric("Duración", "0 min")
         st.caption("0a 0m 0d 0h 0m 0s")
 
-def obtener_registros(nombre_evento):
-    eventos = list(coleccion_eventos.find({"evento": nombre_evento}).sort("fecha_hora", -1))
-    filas = []
-    for i, e in enumerate(eventos):
-        fecha = e["fecha_hora"].astimezone(colombia)
-        anterior = eventos[i + 1]["fecha_hora"].astimezone(colombia) if i + 1 < len(eventos) else None
-        diferencia = ""
-        if anterior:
-            detalle = relativedelta(fecha, anterior)
-            partes = []
-            if detalle.years:
-                partes.append(f"{detalle.years}a")
-            if detalle.months:
-                partes.append(f"{detalle.months}m")
-            if detalle.days:
-                partes.append(f"{detalle.days}d")
-            if detalle.hours:
-                partes.append(f"{detalle.hours}h")
-            if detalle.minutes:
-                partes.append(f"{detalle.minutes}m")
-            diferencia = " ".join(partes)
-        dia_semana = dias_semana_3letras[fecha.weekday()]
-        filas.append({
-            "Día": dia_semana,
-            "Fecha": fecha.strftime("%d-%m-%y"),
-            "Hora": fecha.strftime("%H:%M"),
-            "Sin recaída": diferencia
-        })
-    return pd.DataFrame(filas)
-
-def obtener_reflexiones():
-    docs = list(coleccion_reflexiones.find({}).sort("fecha_hora", -1))
-    rows = []
-    for d in docs:
-        fecha = d["fecha_hora"].astimezone(colombia)
-        emojis = " ".join([e["emoji"] for e in d.get("emociones", [])])
-        emociones = ", ".join([e["nombre"] for e in d.get("emociones", [])])
-        codigo_cat = d.get("categoria_categorial", "")
-        info_cat = sistema_categorial.get(codigo_cat, {
-            "categoria": "Sin categoría",
-            "subcategoria": "",
-            "descriptor": "",
-            "observable": ""
-        })
-        rows.append({
-            "Fecha": fecha.strftime("%d-%m-%y"),
-            "Hora": fecha.strftime("%H:%M"),
-            "Emojis": emojis,
-            "Emociones": emociones,
-            "Categoría": info_cat["categoria"],
-            "Subcategoría": info_cat["subcategoria"],
-            "Descriptor": info_cat.get("descriptor", ""),
-            "Observable": info_cat.get("observable", ""),
-            "Reflexión": d.get("reflexion", "")
-        })
-    return pd.DataFrame(rows)
-
-def formatear_subcategoria(codigo_sub):
-    for codigo, info in sistema_categorial.items():
-        if info["subcategoria"] == codigo_sub:
-            return f"{codigo} {codigo_sub}"
-    return codigo_sub
-
 def mostrar_tabla_eventos(nombre_evento):
     st.subheader(f"📍 Registros")
     df = obtener_registros(nombre_evento)
@@ -323,13 +288,18 @@ seleccion = st.selectbox("Seleccioná qué registrar o consultar:", list(eventos
 opcion = eventos[seleccion]
 
 if opcion in [evento_a, evento_b]:
-    if hay_evento_mismo_dia_semana(opcion):
-        st.error("❗ Atención: hay al menos un registro para el día de la semana de hoy.")
+    recaidas_hoy = contar_recaidas_dia_actual(opcion)
+    dia_semana_hoy = dias_semana_es[datetime.now(colombia).strftime('%A')]
+    if recaidas_hoy > 0:
+        if recaidas_hoy == 1:
+            st.error(f"❗ Atención: hay 1 recaída registrada para un día como hoy {dia_semana_hoy}.")
+        else:
+            st.error(f"❗ Atención: hay {recaidas_hoy} recaídas registradas para un día como hoy {dia_semana_hoy}.")
     else:
         info = obtener_estadisticas_evento(opcion)
         if info:
-            dia_semana, num_recaidas, hora_o_rango = info
-            st.success(f"Hoy es: {dia_semana} | Recaídas: {num_recaidas} | {hora_o_rango}")
+            dia_semana, _, hora_texto = info
+            st.success(f"Hoy es: {dia_semana}\n ➔ Recaídas: {recaidas_hoy}\n ➔ {hora_texto}")
         else:
             st.error("No hay registros para mostrar estadísticas.")
 
