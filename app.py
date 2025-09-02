@@ -6,8 +6,9 @@ import pandas as pd
 from dateutil.relativedelta import relativedelta
 from streamlit_autorefresh import st_autorefresh
 from openai import OpenAI
+from math import sqrt
 
-# Configuración página y zona horaria
+# Configuración básica página y zona horaria
 st.set_page_config(page_title="Reinicia", layout="centered")
 colombia = pytz.timezone("America/Bogota")
 
@@ -22,10 +23,9 @@ coleccion_visual = db["log_visual"]
 # Cliente OpenAI
 openai_client = OpenAI(api_key=st.secrets["openai_api_key"])
 
-# Eventos definidos
+# Eventos
 evento_a = "La Iniciativa Aquella"
 evento_b = "La Iniciativa de Pago"
-
 eventos = {
     "🧠 Reflexión": "reflexion",
     "📑 Historial completo": "historial",
@@ -33,8 +33,9 @@ eventos = {
     "💸": evento_b,
 }
 
-# Sistema categorial completo sin omisiones
+# Sistema categorial completo
 sistema_categorial = {
+    # Completo como antes, sin omitir
     "1.1": {"categoria": "Dinámicas cotidianas", "subcategoria": "Organización del tiempo",
             "descriptor": "Manejo de rutinas y distribución del día",
             "observable": "Relatos sobre horarios de trabajo, estudio, momentos de ocio, tiempo dedicado a la intimidad."},
@@ -73,14 +74,8 @@ sistema_categorial = {
             "observable": "Expresiones de libertad, vergüenza, culpa, normalización; uso de términos religiosos o morales."},
 }
 
-# Inicializar últimos eventos en session_state
-for key in [evento_a, evento_b]:
-    if key not in st.session_state:
-        evento = coleccion_eventos.find_one({"evento": key}, sort=[("fecha_hora", -1)])
-        if evento:
-            st.session_state[key] = evento["fecha_hora"].astimezone(colombia)
+# Funciones auxiliares completas
 
-# Función para clasificar reflexión con OpenAI
 def clasificar_reflexion_openai(texto_reflexion: str) -> str:
     prompt = f"""Sistema categorial para clasificar reflexiones:
 
@@ -112,7 +107,6 @@ Respuesta sólo con el código, ejemplo: 1.4
     )
     return response.choices[0].message.content.strip()
 
-# Guardar reflexión
 def guardar_reflexion(fecha_hora, emociones, reflexion):
     categoria_auto = clasificar_reflexion_openai(reflexion)
     doc = {
@@ -124,18 +118,17 @@ def guardar_reflexion(fecha_hora, emociones, reflexion):
     coleccion_reflexiones.insert_one(doc)
     return categoria_auto
 
-# Registrar evento
 def registrar_evento(nombre_evento, fecha_hora):
     coleccion_eventos.insert_one({"evento": nombre_evento, "fecha_hora": fecha_hora})
     st.session_state[nombre_evento] = fecha_hora
 
-# Mostrar racha
 def mostrar_racha(nombre_evento, emoji):
     clave_estado = f"mostrar_racha_{nombre_evento}"
     if clave_estado not in st.session_state:
         st.session_state[clave_estado] = False
     mostrar = st.checkbox("Ver/ocultar racha", value=st.session_state[clave_estado], key=f"check_{nombre_evento}")
     st.session_state[clave_estado] = mostrar
+
     st.markdown("### ⏱️ Racha")
     if nombre_evento in st.session_state:
         st_autorefresh(interval=1000, limit=None, key=f"auto_{nombre_evento}")
@@ -204,9 +197,8 @@ def mostrar_racha(nombre_evento, emoji):
         st.metric("Duración", "0 min")
         st.caption("0a 0m 0d 0h 0m 0s")
 
-# Obtener registros para tabla
 def obtener_registros(nombre_evento):
-    letras_dia = {0:"L", 1:"M", 2:"X", 3:"J", 4:"V", 5:"S", 6:"D"}
+    letras_dia = {0: "L", 1: "M", 2: "X", 3: "J", 4: "V", 5: "S", 6: "D"}
     eventos = list(coleccion_eventos.find({"evento": nombre_evento}).sort("fecha_hora", -1))
     filas = []
     for i, e in enumerate(eventos):
@@ -236,7 +228,6 @@ def obtener_registros(nombre_evento):
         })
     return pd.DataFrame(filas)
 
-# Obtener reflexiones para historial
 def obtener_reflexiones():
     docs = list(coleccion_reflexiones.find({}).sort("fecha_hora", -1))
     rows = []
@@ -264,7 +255,6 @@ def obtener_reflexiones():
         })
     return pd.DataFrame(rows)
 
-# Mostrar tabla eventos con opción ocultar
 def mostrar_tabla_eventos(nombre_evento):
     st.subheader(f"📍 Registros")
     df = obtener_registros(nombre_evento)
@@ -289,140 +279,3 @@ def mostrar_tabla_eventos(nombre_evento):
         })
         st.dataframe(df_oculto, use_container_width=True, hide_index=True)
         st.caption("🔒 Registros ocultos. Activá la casilla para visualizar.")
-
-# Calcular probabilidad de recaída con umbrales ajustados
-def calcular_probabilidad_recaida(nombre_evento):
-    today_colombia = datetime.now(colombia)
-    dia_semana_actual = today_colombia.weekday()
-
-    eventos_registrados = list(coleccion_eventos.find({"evento": nombre_evento}))
-    total_eventos = len(eventos_registrados)
-    if total_eventos == 0:
-        return "Nula probabilidad de recaída (sin datos)", "success"
-
-    cuenta_mismo_dia = sum(1 for ev in eventos_registrados if ev["fecha_hora"].astimezone(colombia).weekday() == dia_semana_actual)
-    proporcion = cuenta_mismo_dia / total_eventos
-
-    dias_semana_es = {
-        0: "Lunes",
-        1: "Martes",
-        2: "Miércoles",
-        3: "Jueves",
-        4: "Viernes",
-        5: "Sábado",
-        6: "Domingo"
-    }
-    dia_str = dias_semana_es.get(dia_semana_actual, "Día")
-
-    if proporcion == 0:
-        return f"{dia_str}: Nula probabilidad de recaída.", "success"
-    elif proporcion < 0.1:
-        return f"{dia_str}: Baja probabilidad de recaída.", "info"
-    elif proporcion < 0.25:
-        return f"{dia_str}: Probabilidad moderada de recaída.", "warning"
-    elif proporcion < 0.33:
-        return f"{dia_str}: Alta probabilidad de recaída. ¡Atento!", "warning"
-    else:
-        return f"{dia_str}: Probabilidad extremadamente alta de recaída. ¡Cuidate mucho!", "error"
-
-
-# Interfaz principal
-st.title("Reinicia")
-seleccion = st.selectbox("Seleccioná qué registrar o consultar:", list(eventos.keys()))
-opcion = eventos[seleccion]
-
-if opcion != "reflexion":
-    for key in ["texto_reflexion", "emociones_reflexion", "reset_reflexion"]:
-        if key in st.session_state:
-            del st.session_state[key]
-
-if opcion in [evento_a, evento_b]:
-    st.header(f"📍 Registro de evento")
-    fecha_hora_evento = datetime.now(colombia)
-
-    # Mostrar mensaje fijo cálculo o existencia previa
-    if f"mensaje_prob_recaida_{opcion}" not in st.session_state:
-        mensaje, nivel = calcular_probabilidad_recaida(opcion)
-        st.session_state[f"mensaje_prob_recaida_{opcion}"] = (mensaje, nivel)
-
-    msg, nivel = st.session_state[f"mensaje_prob_recaida_{opcion}"]
-    if nivel == "error":
-        st.error(msg)
-    elif nivel == "warning":
-        st.warning(msg)
-    elif nivel == "info":
-        st.info(msg)
-    else:
-        st.success(msg)
-
-    if st.button("☠️ ¿Registrar?"):
-        registrar_evento(opcion, fecha_hora_evento)
-        st.success(f"Evento '{seleccion}' registrado a las {fecha_hora_evento.strftime('%H:%M:%S')}")
-        mensaje, nivel = calcular_probabilidad_recaida(opcion)
-        st.session_state[f"mensaje_prob_recaida_{opcion}"] = (mensaje, nivel)
-        st.rerun()
-
-    mostrar_racha(opcion, seleccion.split()[0])
-
-elif opcion == "reflexion":
-    st.header("🧠 Registrar reflexión")
-
-    if st.session_state.get("reset_reflexion", False):
-        st.session_state["texto_reflexion"] = ""
-        st.session_state["emociones_reflexion"] = []
-        st.session_state["reset_reflexion"] = False
-        st.rerun()
-
-    ultima = coleccion_reflexiones.find_one({}, sort=[("fecha_hora", -1)])
-    if ultima:
-        fecha = ultima["fecha_hora"].astimezone(colombia)
-        st.caption(f"📌 Última registrada: {fecha.strftime('%d-%m-%y %H:%M:%S')}")
-
-    fecha_hora_reflexion = datetime.now(colombia)
-
-    emociones_opciones = [
-        "😰 Ansioso", "😡 Irritado / Rabia contenida", "💪 Firme / Decidido",
-        "😌 Aliviado / Tranquilo", "😓 Culpable", "🥱 Apático / Cansado", "😔 Triste"
-    ]
-
-    emociones = st.multiselect(
-        "¿Cómo te sentías?",
-        emociones_opciones,
-        key="emociones_reflexion",
-        placeholder="Seleccioná una o varias emociones"
-    )
-    texto_reflexion = st.text_area("¿Querés dejar algo escrito?", height=150, key="texto_reflexion")
-
-    puede_guardar = texto_reflexion.strip() or emociones
-
-    if puede_guardar:
-        if st.button("📝 Guardar reflexión"):
-            categoria_asignada = guardar_reflexion(fecha_hora_reflexion, emociones, texto_reflexion)
-            st.success(f"Reflexión guardada con categoría: {categoria_asignada}")
-            st.session_state["reset_reflexion"] = True
-            st.rerun()
-
-elif opcion == "historial":
-    st.header("📑 Historial completo")
-    tabs = st.tabs(["🧠 Reflexiones", "✊🏽", "💸"])
-
-    with tabs[0]:
-        st.subheader("📍 Historial de reflexiones")
-        df_r = obtener_reflexiones()
-        for i, row in df_r.iterrows():
-            with st.expander(f"{row['Fecha']} {row['Emojis']} {row['Hora']}"):
-                st.write(row['Reflexión'])
-                st.markdown("---")
-                st.write(f"**Estados de ánimo:** {row['Emociones']}")
-                st.markdown(f"**Categoría:** {row['Categoría']}")
-                st.markdown(f"**Subcategoría:** {row['Subcategoría']}")
-                if row['Descriptor']:
-                    st.markdown(f"**Descriptor:** {row['Descriptor']}")
-                if row['Observable']:
-                    st.markdown(f"**Observable:** {row['Observable']}")
-
-    with tabs[1]:
-        mostrar_tabla_eventos(evento_a)
-
-    with tabs[2]:
-        mostrar_tabla_eventos(evento_b)
