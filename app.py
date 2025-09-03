@@ -337,7 +337,7 @@ if opcion in [evento_a, evento_b]:
         hora_max = df_dia["Hora"].max()
         st.error(f"❗ Atención: hay {recaidas_hoy} recaídas registradas para un día como hoy {dia_semana_hoy} entre las {hora_min} y las {hora_max}.")
     else:
-        st.success(f"Hoy es: {dia_semana_hoy}\n ➔ Recaídas: 0\n ➔ Sin registros para mostrar rango horario.")
+        st.success(f"Hoy es: {dia_semana_hoy}. Sin registros para mostrar. Congrats!!! ")
 
 # Limpieza de estados temporales para reflexiones si la opción no es reflexion
 if opcion != "reflexion":
