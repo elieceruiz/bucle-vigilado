@@ -7,22 +7,24 @@ from dateutil.relativedelta import relativedelta
 from streamlit_autorefresh import st_autorefresh
 from openai import OpenAI
 
-# Configuración básica de la página Streamlit: título y layout centrado
+# Configuración de página: título y diseño centrado
 st.set_page_config(page_title="Reinicia", layout="centered")
 
-# Definir la zona horaria para Colombia para manejo correcto de fechas y horas locales
+# Definición de zona horaria Colombia para manejo local de fechas
 colombia = pytz.timezone("America/Bogota")
 
-# Diccionarios para traducir días en inglés a formato español, tanto completo como abreviado
+# Diccionario para traducir días de la semana en inglés a español completo
 dias_semana_es = {
     "Monday": "Lunes", "Tuesday": "Martes", "Wednesday": "Miércoles",
     "Thursday": "Jueves", "Friday": "Viernes", "Saturday": "Sábado", "Sunday": "Domingo"
 }
+
+# Diccionario para abreviaturas de días, índice día a abreviatura en español
 dias_semana_3letras = {
     0: "Lun", 1: "Mar", 2: "Mié", 3: "Jue", 4: "Vie", 5: "Sáb", 6: "Dom"
 }
 
-# Establecer conexión segura a MongoDB usando las credenciales almacenadas en streamlit secrets
+# Conexión a MongoDB usando URI segura guardada en streamlit secrets
 client = MongoClient(st.secrets["mongo_uri"])
 db = client["registro_bucle"]
 coleccion_eventos = db["eventos"]
@@ -30,12 +32,13 @@ coleccion_reflexiones = db["reflexiones"]
 coleccion_hitos = db["hitos"]
 coleccion_visual = db["log_visual"]
 
-# Cliente de OpenAI configurado para usar API Key almacenado en streamlit secrets
+# Cliente OpenAI configurado con clave en streamlit secrets
 openai_client = OpenAI(api_key=st.secrets["openai_api_key"])
 
-# Definir nombres constantes para eventos relevantes y mapa para selección de opciones en UI
+# Nombres constantes de eventos importantes
 evento_a = "La Iniciativa Aquella"
 evento_b = "La Iniciativa de Pago"
+# Diccionario que mapea etiquetas a nombres de eventos para selección
 eventos = {
     "🧠 Reflexión": "reflexion",
     "📑 Historial completo": "historial",
@@ -43,22 +46,54 @@ eventos = {
     "💸": evento_b,
 }
 
-# Mapa del sistema categorial para clasificación automática de reflexiones
+# Sistema categorial para clasificaciones automáticas en reflexiones
 sistema_categorial = {
     "1.1": {"categoria": "Dinámicas cotidianas", "subcategoria": "Organización del tiempo",
             "descriptor": "Manejo de rutinas y distribución del día",
             "observable": "Relatos sobre horarios de trabajo, estudio, momentos de ocio, tiempo dedicado a la intimidad."},
-    # El resto de categorías se omite para brevedad
+    "1.2": {"categoria": "Dinámicas cotidianas", "subcategoria": "Relaciones sociales",
+            "descriptor": "Interacciones que influyen en la vida íntima.",
+            "observable": "Narraciones sobre pareja, amigos, familia; menciones de aprobación o desaprobación social."},
+    "1.3": {"categoria": "Dinámicas cotidianas", "subcategoria": "Contextos de intimidad",
+            "descriptor": "Espacios físicos y virtuales donde se desarrollan las prácticas.",
+            "observable": "Lugares mencionados (casa, moteles, internet, calle), dispositivos usados, condiciones de privacidad."},
+    "1.4": {"categoria": "Dinámicas cotidianas", "subcategoria": "Factores emocionales",
+            "descriptor": "Estados afectivos vinculados al ejercicio de la sexualidad.",
+            "observable": "Expresiones de soledad, ansiedad, deseo, satisfacción o culpa."},
+    "2.1": {"categoria": "Consumo de sexo pago", "subcategoria": "Motivaciones",
+            "descriptor": "Razones personales y sociales para pagar por sexo.",
+            "observable": "Relatos de búsqueda de placer, compañía, evasión, curiosidad, necesidad de afecto."},
+    "2.2": {"categoria": "Consumo de sexo pago", "subcategoria": "Prácticas asociadas",
+            "descriptor": "Formas de acceder y realizar el consumo.",
+            "observable": "Lugares (bares, calles, plataformas digitales), frecuencia, monto pagado, modalidades de encuentro."},
+    "2.3": {"categoria": "Consumo de sexo pago", "subcategoria": "Representaciones",
+            "descriptor": "Significados culturales y personales del sexo pago.",
+            "observable": "Uso de términos como tabú, normal, peligroso, necesario, transgresión; narrativas de estigma o aceptación."},
+    "2.4": {"categoria": "Consumo de sexo pago", "subcategoria": "Efectos en la trayectoria íntima",
+            "descriptor": "Impacto en la experiencia personal y en la memoria íntima.",
+            "observable": "Relatos de aprendizaje, arrepentimiento, culpa, gratificación, comparación con otras prácticas sexuales."},
+    "3.1": {"categoria": "Masturbación", "subcategoria": "Prácticas de autocuidado",
+            "descriptor": "Uso de la masturbación como estrategia de bienestar.",
+            "observable": "Relatos sobre relajación, control del estrés, conciliación del sueño, cuidado de la salud sexual."},
+    "3.2": {"categoria": "Masturbación", "subcategoria": "Placer y exploración del cuerpo",
+            "descriptor": "Búsqueda de satisfacción personal y autoconocimiento.",
+            "observable": "Narrativas sobre fantasías, técnicas usadas, experimentación, referencias a placer físico."},
+    "3.3": {"categoria": "Masturbación", "subcategoria": "Relación con la intimidad",
+            "descriptor": "Vínculo entre la masturbación y la privacidad del sujeto.",
+            "observable": "Relatos de momentos en soledad, rituales íntimos, ocultamiento frente a otros."},
+    "3.4": {"categoria": "Masturbación", "subcategoria": "Representaciones culturales",
+            "descriptor": "Significados sociales y personales atribuidos a la masturbación.",
+            "observable": "Expresiones de libertad, vergüenza, culpa, normalización; uso de términos religiosos o morales."},
 }
 
-# Cargar las fechas de último evento registrado al iniciar para los eventos clave, guardándolas en session_state para estado persistente
+# Al iniciar, carga último evento registrado para eventos principales en session_state
 for key in [evento_a, evento_b]:
     if key not in st.session_state:
         evento = coleccion_eventos.find_one({"evento": key}, sort=[("fecha_hora", -1)])
         if evento:
             st.session_state[key] = evento["fecha_hora"].astimezone(colombia)
 
-# Función que usa OpenAI para clasificar automáticamente una reflexión según sistema categorial definido
+# Función para clasificar la reflexión con OpenAI según sistema categorial completo
 def clasificar_reflexion_openai(texto_reflexion: str) -> str:
     prompt = f"""Sistema categorial para clasificar reflexiones:
 
@@ -90,7 +125,7 @@ Respuesta sólo con el código, ejemplo: 1.4
     )
     return response.choices[0].message.content.strip()
 
-# Función para guardar una reflexión con emociones y texto en la base de datos, junto a su categoría asignada automáticamente
+# Función para guardar reflexión en base de datos junto con clasificación automática
 def guardar_reflexion(fecha_hora, emociones, reflexion):
     categoria_auto = clasificar_reflexion_openai(reflexion)
     doc = {
@@ -102,13 +137,13 @@ def guardar_reflexion(fecha_hora, emociones, reflexion):
     coleccion_reflexiones.insert_one(doc)
     return categoria_auto
 
-# Función para registrar un nuevo evento en MongoDB, actualizar el estado y forzar recarga de app (rerun)
+# Función para registrar un evento nuevo en la base y actualizar sesión con rerun
 def registrar_evento(nombre_evento, fecha_hora):
     coleccion_eventos.insert_one({"evento": nombre_evento, "fecha_hora": fecha_hora})
     st.session_state[nombre_evento] = fecha_hora
-    st.rerun()  # Fuerza recarga total para reflejar el nuevo estado
+    st.rerun()  # Fuerza recarga para reflejar cambios
 
-# Función que obtiene los eventos guardados y retorna un DataFrame con información y diferencia de tiempo formatada
+# Obtener DataFrame con registros ordenados por fecha y diferencia formateada en días, horas, minutos
 def obtener_registros(nombre_evento):
     eventos = list(coleccion_eventos.find({"evento": nombre_evento}).sort("fecha_hora", -1))
     filas = []
@@ -137,7 +172,7 @@ def obtener_registros(nombre_evento):
         })
     return pd.DataFrame(filas)
 
-# Función para obtener reflexiones almacenadas y formatearlas para mostrar en UI
+# Obtener DataFrame con reflexiones almacenadas con detalles para mostrar
 def obtener_reflexiones():
     docs = list(coleccion_reflexiones.find({}).sort("fecha_hora", -1))
     rows = []
@@ -165,7 +200,7 @@ def obtener_reflexiones():
         })
     return pd.DataFrame(rows)
 
-# Función para mostrar el cronómetro/racha que actualiza cada segundo solo si checkbox está activo
+# Función para mostrar cronómetro (racha) con actualización periódica solo cuando esté activo
 def mostrar_racha(nombre_evento, emoji):
     clave_estado = f"mostrar_racha_{nombre_evento}"
     if clave_estado not in st.session_state:
@@ -198,7 +233,8 @@ def mostrar_racha(nombre_evento, emoji):
 
         if nombre_evento == evento_a:
             registros = list(coleccion_eventos.find({"evento": nombre_evento}).sort("fecha_hora", -1))
-            record = max([(registros[i - 1]["fecha_hora"] - registros[i]["fecha_hora"]) for i in range(1, len(registros))], default=delta) if len(registros) > 1 else delta
+            record = max([(registros[i - 1]["fecha_hora"] - registros[i]["fecha_hora"])
+                          for i in range(1, len(registros))], default=delta) if len(registros) > 1 else delta
             total_dias = record.days
             horas = record.seconds // 3600
             minutos_rec = (record.seconds % 3600) // 60
@@ -244,7 +280,7 @@ def mostrar_racha(nombre_evento, emoji):
         st.metric("Duración", "•••••• min", "••a ••m ••d ••h ••m ••s")
         st.caption("🔒 Información sensible oculta. Activá la casilla para visualizar.")
 
-# Función para mostrar tabla con registros y botón para ocultar datos sensibles
+# Función para mostrar tabla de registros, con opción de ocultar datos
 def mostrar_tabla_eventos(nombre_evento):
     st.subheader(f"📍 Registros")
     df = obtener_registros(nombre_evento)
@@ -269,7 +305,7 @@ def mostrar_tabla_eventos(nombre_evento):
         st.dataframe(df_oculto, use_container_width=True, hide_index=True)
         st.caption("🔒 Registros ocultos. Activá la casilla para visualizar.")
 
-# Diccionario para emojis en título de registro según selección
+# Mapa emojis para encabezados dinámicos según selección usuario
 emojis_titulo = {
     "🧠 Reflexión": "🧠",
     "✊🏽": "✊🏽",
@@ -278,10 +314,11 @@ emojis_titulo = {
 
 st.title("Reinicia")
 
+# Selector principal para elegir módulo o acción
 seleccion = st.selectbox("Seleccioná qué registrar o consultar:", list(eventos.keys()))
 opcion = eventos[seleccion]
 
-# Construir el título dinámico "Registro + emoji" según selección para encabezados
+# Creación de encabezado dinámico con emoji y palabra "Registro"
 emoji_titulo = emojis_titulo.get(seleccion, "")
 registro_titulo = f"Registro {emoji_titulo}"
 
@@ -359,7 +396,7 @@ elif opcion == "historial":
     with tabs[2]:
         mostrar_tabla_eventos(evento_b)
 
-# Función para mostrar tabla de eventos con opción de ocultar registros
+# Función para mostrar tabla de eventos con opción ocultar/mostrar
 def mostrar_tabla_eventos(nombre_evento):
     st.subheader(f"📍 Registros")
     df = obtener_registros(nombre_evento)
@@ -369,7 +406,6 @@ def mostrar_tabla_eventos(nombre_evento):
         return "•" * len(str(numero))
 
     mostrar = st.checkbox("Ver/Ocultar registros", value=False, key=f"mostrar_{nombre_evento}")
-
     total_mostrar = str(total_registros) if mostrar else ocultar_numero_con_punticos(total_registros)
     st.markdown(f"**Total de registros:** {total_mostrar}")
 
