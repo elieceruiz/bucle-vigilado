@@ -347,7 +347,6 @@ if opcion != "reflexion":
 
 # Mostrar módulo para registrar eventos y cronómetro
 if opcion in [evento_a, evento_b]:
-    st.header(f"📍 Registro de evento")
     fecha_hora_evento = datetime.now(colombia)
 
     if st.button("☠️ ¿Registrar?"):
