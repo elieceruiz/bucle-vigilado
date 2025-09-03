@@ -41,7 +41,7 @@ evento_b = "La Iniciativa de Pago"
 # Diccionario que mapea etiquetas a nombres de eventos para selección
 eventos = {
     "🧠 Reflexión": "reflexion",
-    "📑 Historial completo": "historial",
+    "📑 Historial": "historial",
     "✊🏽": evento_a,
     "💸": evento_b,
 }
@@ -397,7 +397,6 @@ elif opcion == "reflexion":
 
 # Módulo para mostrar historial completo
 elif opcion == "historial":
-    st.header("📑 Historial completo")
     tabs = st.tabs(["🧠 Reflexiones", "✊🏽", "💸"])
 
     with tabs[0]:
