@@ -395,7 +395,7 @@ elif opcion == "reflexion":
 
 # Módulo para mostrar historial completo
 elif opcion == "historial":
-    tabs = st.tabs(["🧠 Reflexiones", "✊🏽", "💸"])
+    tabs = st.tabs(["🧠", "✊🏽", "💸"])
 
     with tabs[0]:
         df_r = obtener_reflexiones()
