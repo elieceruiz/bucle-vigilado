@@ -7,24 +7,22 @@ from dateutil.relativedelta import relativedelta
 from streamlit_autorefresh import st_autorefresh
 from openai import OpenAI
 
-# Configuración de página: título y diseño centrado
+# Configuración básica de la página Streamlit: título y layout centrado
 st.set_page_config(page_title="Reinicia", layout="centered")
 
-# Definición de zona horaria Colombia para manejo local de fechas
+# Definición de la zona horaria para manejo local de fechas y horas en Colombia
 colombia = pytz.timezone("America/Bogota")
 
-# Diccionario para traducir días de la semana en inglés a español completo
+# Diccionarios para traducir días completos y abreviados del inglés al español
 dias_semana_es = {
     "Monday": "Lunes", "Tuesday": "Martes", "Wednesday": "Miércoles",
     "Thursday": "Jueves", "Friday": "Viernes", "Saturday": "Sábado", "Sunday": "Domingo"
 }
-
-# Diccionario para abreviaturas de días, índice día a abreviatura en español
 dias_semana_3letras = {
     0: "Lun", 1: "Mar", 2: "Mié", 3: "Jue", 4: "Vie", 5: "Sáb", 6: "Dom"
 }
 
-# Conexión a MongoDB usando URI segura guardada en streamlit secrets
+# Conexión a MongoDB con URI segura almacenada en Streamlit secrets
 client = MongoClient(st.secrets["mongo_uri"])
 db = client["registro_bucle"]
 coleccion_eventos = db["eventos"]
@@ -32,13 +30,13 @@ coleccion_reflexiones = db["reflexiones"]
 coleccion_hitos = db["hitos"]
 coleccion_visual = db["log_visual"]
 
-# Cliente OpenAI configurado con clave en streamlit secrets
+# Cliente OpenAI configurado con clave API desde secrets
 openai_client = OpenAI(api_key=st.secrets["openai_api_key"])
 
-# Nombres constantes de eventos importantes
+# Constantes con nombres de eventos importantes
 evento_a = "La Iniciativa Aquella"
 evento_b = "La Iniciativa de Pago"
-# Diccionario que mapea etiquetas a nombres de eventos para selección
+# Diccionario que mapea etiquetas a opciones internas para el menú
 eventos = {
     "🧠 Reflexión": "reflexion",
     "📑 Historial completo": "historial",
@@ -46,7 +44,7 @@ eventos = {
     "💸": evento_b,
 }
 
-# Sistema categorial para clasificaciones automáticas en reflexiones
+# Sistema categorial completo para clasificar reflexiones
 sistema_categorial = {
     "1.1": {"categoria": "Dinámicas cotidianas", "subcategoria": "Organización del tiempo",
             "descriptor": "Manejo de rutinas y distribución del día",
@@ -86,14 +84,14 @@ sistema_categorial = {
             "observable": "Expresiones de libertad, vergüenza, culpa, normalización; uso de términos religiosos o morales."},
 }
 
-# Al iniciar, carga último evento registrado para eventos principales en session_state
+# Al iniciar, carga la fecha/hora del último evento registrado para eventos principales desde la base
 for key in [evento_a, evento_b]:
     if key not in st.session_state:
         evento = coleccion_eventos.find_one({"evento": key}, sort=[("fecha_hora", -1)])
         if evento:
             st.session_state[key] = evento["fecha_hora"].astimezone(colombia)
 
-# Función para clasificar la reflexión con OpenAI según sistema categorial completo
+# Función para clasificar una reflexión con la API de OpenAI, de acuerdo al sistema categorial completo
 def clasificar_reflexion_openai(texto_reflexion: str) -> str:
     prompt = f"""Sistema categorial para clasificar reflexiones:
 
@@ -125,7 +123,7 @@ Respuesta sólo con el código, ejemplo: 1.4
     )
     return response.choices[0].message.content.strip()
 
-# Función para guardar reflexión en base de datos junto con clasificación automática
+# Guarda una reflexión en la base junto con su categoría asignada automáticamente por OpenAI
 def guardar_reflexion(fecha_hora, emociones, reflexion):
     categoria_auto = clasificar_reflexion_openai(reflexion)
     doc = {
@@ -137,13 +135,14 @@ def guardar_reflexion(fecha_hora, emociones, reflexion):
     coleccion_reflexiones.insert_one(doc)
     return categoria_auto
 
-# Función para registrar un evento nuevo en la base y actualizar sesión con rerun
+# Registra un evento nuevo en la base y actualiza el estado de sesión; luego fuerza recarga con st.rerun()
 def registrar_evento(nombre_evento, fecha_hora):
     coleccion_eventos.insert_one({"evento": nombre_evento, "fecha_hora": fecha_hora})
     st.session_state[nombre_evento] = fecha_hora
-    st.rerun()  # Fuerza recarga para reflejar cambios
+    st.rerun()
 
-# Obtener DataFrame con registros ordenados por fecha y diferencia formateada en días, horas, minutos
+# Obtiene DataFrame con registros ordenados y calcula diferencia temporal entre eventos, formateando en meses, días, horas y minutos
+# El primer registro no muestra diferencia en "Sin recaída"
 def obtener_registros(nombre_evento):
     eventos = list(coleccion_eventos.find({"evento": nombre_evento}).sort("fecha_hora", -1))
     filas = []
@@ -151,17 +150,15 @@ def obtener_registros(nombre_evento):
         fecha = e["fecha_hora"].astimezone(colombia)
         anterior = eventos[i + 1]["fecha_hora"].astimezone(colombia) if i + 1 < len(eventos) else None
 
-        if anterior:
-            diff = fecha - anterior
-            if diff.total_seconds() <= 0:
-                diferencia = "0"
-            else:
-                dias = diff.days
-                horas = (diff.seconds // 3600) % 24
-                minutos = (diff.seconds % 3600) // 60
-                diferencia = f"{dias}d {horas}h {minutos}m"
+        if anterior and i != 0:
+            delta = relativedelta(fecha, anterior)
+            meses = delta.months + delta.years * 12
+            dias = delta.days
+            horas = delta.hours
+            minutos = delta.minutes
+            diferencia = f"{meses}m {dias}d {horas}h {minutos}min"
         else:
-            diferencia = "0"
+            diferencia = ""  # El primer registro sin valor en "Sin recaída"
 
         dia_semana = dias_semana_3letras[fecha.weekday()]
         filas.append({
@@ -172,7 +169,7 @@ def obtener_registros(nombre_evento):
         })
     return pd.DataFrame(filas)
 
-# Obtener DataFrame con reflexiones almacenadas con detalles para mostrar
+# Devuelve DataFrame con todas las reflexiones almacenadas incluyendo categorías y detalles para mostrar
 def obtener_reflexiones():
     docs = list(coleccion_reflexiones.find({}).sort("fecha_hora", -1))
     rows = []
@@ -200,7 +197,7 @@ def obtener_reflexiones():
         })
     return pd.DataFrame(rows)
 
-# Función para mostrar cronómetro (racha) con actualización periódica solo cuando esté activo
+# Muestra cronómetro actualizado (racha) que refresca cada segundo solo si el checkbox está activo
 def mostrar_racha(nombre_evento, emoji):
     clave_estado = f"mostrar_racha_{nombre_evento}"
     if clave_estado not in st.session_state:
@@ -280,7 +277,7 @@ def mostrar_racha(nombre_evento, emoji):
         st.metric("Duración", "•••••• min", "••a ••m ••d ••h ••m ••s")
         st.caption("🔒 Información sensible oculta. Activá la casilla para visualizar.")
 
-# Función para mostrar tabla de registros, con opción de ocultar datos
+# Función para mostrar tabla con registros y botón para ocultar datos sensibles
 def mostrar_tabla_eventos(nombre_evento):
     st.subheader(f"📍 Registros")
     df = obtener_registros(nombre_evento)
@@ -300,28 +297,30 @@ def mostrar_tabla_eventos(nombre_evento):
             "Día": ["•••"] * total_registros,
             "Fecha": ["••-••-••"] * total_registros,
             "Hora": ["••:••"] * total_registros,
-            "Sin recaída": ["••d ••h ••m"] * total_registros
+            "Sin recaída": ["••m ••d ••h ••min"] * total_registros
         })
         st.dataframe(df_oculto, use_container_width=True, hide_index=True)
         st.caption("🔒 Registros ocultos. Activá la casilla para visualizar.")
 
-# Mapa emojis para encabezados dinámicos según selección usuario
+# Diccionario para emojos de títulos en encabezados según selección de usuario
 emojis_titulo = {
     "🧠 Reflexión": "🧠",
     "✊🏽": "✊🏽",
     "💸": "💸",
 }
 
+# Título principal de la aplicación
 st.title("Reinicia")
 
-# Selector principal para elegir módulo o acción
+# Selector para elegir módulo a mostrar o registrar
 seleccion = st.selectbox("Seleccioná qué registrar o consultar:", list(eventos.keys()))
 opcion = eventos[seleccion]
 
-# Creación de encabezado dinámico con emoji y palabra "Registro"
+# Construcción dinámica del título con emoji para el encabezado
 emoji_titulo = emojis_titulo.get(seleccion, "")
 registro_titulo = f"Registro {emoji_titulo}"
 
+# Lógica principal según opción seleccionada del menú
 if opcion in [evento_a, evento_b]:
     st.header(registro_titulo)
     fecha_hora_evento = datetime.now(colombia)
@@ -329,6 +328,7 @@ if opcion in [evento_a, evento_b]:
     if st.button("☠️ ¿Registrar?"):
         registrar_evento(opcion, fecha_hora_evento)
         st.success(f"Evento '{seleccion}' registrado a las {fecha_hora_evento.strftime('%H:%M:%S')}")
+        # Usamos st.rerun para refrescar app y ver cambios inmediatamente
         st.rerun()
 
     mostrar_racha(opcion, emoji_titulo)
@@ -337,6 +337,7 @@ elif opcion == "reflexion":
     st.header(registro_titulo)
 
     if st.session_state.get("reset_reflexion", False):
+        # Limpiar campos y reiniciar estado para texto y emociones en reflexión
         st.session_state["texto_reflexion"] = ""
         st.session_state["emociones_reflexion"] = []
         st.session_state["reset_reflexion"] = False
@@ -396,7 +397,7 @@ elif opcion == "historial":
     with tabs[2]:
         mostrar_tabla_eventos(evento_b)
 
-# Función para mostrar tabla de eventos con opción ocultar/mostrar
+# Definición para mostrar tablas con registros y opción para ocultar datos sensibles
 def mostrar_tabla_eventos(nombre_evento):
     st.subheader(f"📍 Registros")
     df = obtener_registros(nombre_evento)
@@ -416,7 +417,7 @@ def mostrar_tabla_eventos(nombre_evento):
             "Día": ["•••"] * total_registros,
             "Fecha": ["••-••-••"] * total_registros,
             "Hora": ["••:••"] * total_registros,
-            "Sin recaída": ["••d ••h ••m"] * total_registros
+            "Sin recaída": ["••m ••d ••h ••min"] * total_registros
         })
         st.dataframe(df_oculto, use_container_width=True, hide_index=True)
         st.caption("🔒 Registros ocultos. Activá la casilla para visualizar.")
