@@ -8,29 +8,22 @@ import time
 import threading
 from openai import OpenAI
 
+# Configuración de la página con título y diseño centrado
 st.set_page_config(page_title="Reinicia", layout="centered")
+
+# Zona horaria de Colombia para manejar fechas y horas localmente
 colombia = pytz.timezone("America/Bogota")
 
+# Diccionarios para mostrar días de la semana en español, largo y corto
 dias_semana_es = {
-    "Monday": "Lunes",
-    "Tuesday": "Martes",
-    "Wednesday": "Miércoles",
-    "Thursday": "Jueves",
-    "Friday": "Viernes",
-    "Saturday": "Sábado",
-    "Sunday": "Domingo"
+    "Monday": "Lunes", "Tuesday": "Martes", "Wednesday": "Miércoles",
+    "Thursday": "Jueves", "Friday": "Viernes", "Saturday": "Sábado", "Sunday": "Domingo"
 }
-
 dias_semana_3letras = {
-    0: "Lun",
-    1: "Mar",
-    2: "Mié",
-    3: "Jue",
-    4: "Vie",
-    5: "Sáb",
-    6: "Dom"
+    0: "Lun", 1: "Mar", 2: "Mié", 3: "Jue", 4: "Vie", 5: "Sáb", 6: "Dom"
 }
 
+# Conexión a la base de datos MongoDB mediante URI segura desde secrets
 client = MongoClient(st.secrets["mongo_uri"])
 db = client["registro_bucle"]
 coleccion_eventos = db["eventos"]
@@ -38,8 +31,10 @@ coleccion_reflexiones = db["reflexiones"]
 coleccion_hitos = db["hitos"]
 coleccion_visual = db["log_visual"]
 
+# Cliente OpenAI configurado con clave desde secrets
 openai_client = OpenAI(api_key=st.secrets["openai_api_key"])
 
+# Nombres constantes de eventos que manejamos
 evento_a = "La Iniciativa Aquella"
 evento_b = "La Iniciativa de Pago"
 eventos = {
@@ -49,7 +44,9 @@ eventos = {
     "💸": evento_b,
 }
 
+# Sistema categorial para clasificar reflexiones según categorías/subcategorías
 sistema_categorial = {
+    # Cada clave con su información descriptiva y observable
     "1.1": {"categoria": "Dinámicas cotidianas", "subcategoria": "Organización del tiempo",
             "descriptor": "Manejo de rutinas y distribución del día",
             "observable": "Relatos sobre horarios de trabajo, estudio, momentos de ocio, tiempo dedicado a la intimidad."},
@@ -88,12 +85,14 @@ sistema_categorial = {
             "observable": "Expresiones de libertad, vergüenza, culpa, normalización; uso de términos religiosos o morales."},
 }
 
+# Al iniciar, cargamos la última fecha de evento para ambos eventos importantes
 for key in [evento_a, evento_b]:
     if key not in st.session_state:
         evento = coleccion_eventos.find_one({"evento": key}, sort=[("fecha_hora", -1)])
         if evento:
             st.session_state[key] = evento["fecha_hora"].astimezone(colombia)
 
+# Función para obtener clasificación de reflexión con OpenAI
 def clasificar_reflexion_openai(texto_reflexion: str) -> str:
     prompt = f"""Sistema categorial para clasificar reflexiones:
 
@@ -125,6 +124,7 @@ Respuesta sólo con el código, ejemplo: 1.4
     )
     return response.choices[0].message.content.strip()
 
+# Guardar reflexión con categoría automática y guardar en base MongoDB
 def guardar_reflexion(fecha_hora, emociones, reflexion):
     categoria_auto = clasificar_reflexion_openai(reflexion)
     doc = {
@@ -136,10 +136,16 @@ def guardar_reflexion(fecha_hora, emociones, reflexion):
     coleccion_reflexiones.insert_one(doc)
     return categoria_auto
 
+# Guardar evento y actualizar session_state con cronómetro e indicador para mostrarlo
 def registrar_evento(nombre_evento, fecha_hora):
     coleccion_eventos.insert_one({"evento": nombre_evento, "fecha_hora": fecha_hora})
     st.session_state[nombre_evento] = fecha_hora
+    st.session_state["cronometro_inicio"] = fecha_hora  
+    st.session_state["mostrar_racha"] = True
+    # Forzar recarga completa para reflejar cambios
+    st.rerun()
 
+# Obtener registros para evento desde BD y calcular diferencias temporales
 def obtener_registros(nombre_evento):
     eventos = list(coleccion_eventos.find({"evento": nombre_evento}).sort("fecha_hora", -1))
     filas = []
@@ -170,6 +176,7 @@ def obtener_registros(nombre_evento):
         })
     return pd.DataFrame(filas)
 
+# Obtener reflexiones desde BD con datos de emociones y categorías
 def obtener_reflexiones():
     docs = list(coleccion_reflexiones.find({}).sort("fecha_hora", -1))
     rows = []
@@ -197,33 +204,44 @@ def obtener_reflexiones():
         })
     return pd.DataFrame(rows)
 
-def mostrar_cronometro_live(inicio, nombre_evento):
-    import threading
+# Función que actualiza un cronómetro en la interfaz en un hilo separado para no bloquear
+def mostrar_cronometro_live():
     cronometro_placeholder = st.empty()
+    if "cronometro_inicio" not in st.session_state:
+        return
+    inicio = st.session_state["cronometro_inicio"]
     segundos_iniciales = int((datetime.now(colombia) - inicio).total_seconds())
 
     def actualizar_cronometro():
         i = segundos_iniciales
-        while True:
+        # Mientras esté activo mostrar_racha, actualizar cronómetro cada segundo
+        while st.session_state.get("mostrar_racha", False):
             duracion_str = str(timedelta(seconds=i))
-            cronometro_placeholder.markdown(f"### ⏱️ Tiempo transcurrido desde '{nombre_evento}': {duracion_str}")
+            cronometro_placeholder.markdown(f"### ⏱️ Tiempo transcurrido: {duracion_str}")
             time.sleep(1)
             i += 1
 
     hilo = threading.Thread(target=actualizar_cronometro, daemon=True)
     hilo.start()
 
+# Interfaz para la racha con checkbox que maneja estado en session_state usando key
 def mostrar_racha(nombre_evento, emoji):
-    clave_estado = f"mostrar_racha_{nombre_evento}"
+    clave_estado = "mostrar_racha"
     if clave_estado not in st.session_state:
         st.session_state[clave_estado] = False
-    mostrar = st.checkbox("Ver/ocultar racha", value=st.session_state[clave_estado], key=f"check_{nombre_evento}")
-    st.session_state[clave_estado] = mostrar
+
+    # Checkbox ligado a session_state para manejar visibilidad cronómetro
+    mostrar = st.checkbox("Ver/ocultar racha", key=clave_estado)
+
     st.markdown("### ⏱️ Racha")
+
+    # Si hay evento registrado, mostrar cronómetro y datos
     if nombre_evento in st.session_state:
         ultimo = st.session_state[nombre_evento]
-        mostrar_cronometro_live(ultimo, nombre_evento)
+
         if mostrar:
+            mostrar_cronometro_live()
+
             ahora = datetime.now(colombia)
             delta = ahora - ultimo
             detalle = relativedelta(ahora, ultimo)
@@ -233,9 +251,11 @@ def mostrar_racha(nombre_evento, emoji):
             dia_es = dias_semana_es.get(dia, dia)
             st.metric("Duración", f"{minutos:,} min", tiempo)
             st.caption(f"🔴 Última recaída: {dia_es} {ultimo.strftime('%d-%m-%y %H:%M:%S')}")
-            if nombre_evento == "La Iniciativa Aquella":
+
+            if nombre_evento == evento_a:
                 registros = list(coleccion_eventos.find({"evento": nombre_evento}).sort("fecha_hora", -1))
-                record = max([(registros[i - 1]["fecha_hora"] - registros[i]["fecha_hora"]) for i in range(1, len(registros))], default=delta)
+                record = max([(registros[i - 1]["fecha_hora"] - registros[i]["fecha_hora"]) 
+                              for i in range(1, len(registros))], default=delta) if len(registros) > 1 else delta
                 total_dias = record.days
                 horas = record.seconds // 3600
                 minutos_rec = (record.seconds % 3600) // 60
@@ -272,12 +292,15 @@ def mostrar_racha(nombre_evento, emoji):
                 st.progress(progreso_visual)
                 st.markdown(f"📈 **Progreso frente al récord:** `{porcentaje_record:.1f}%`")
         else:
+            # Mostrar UI oculta cuando checkbox está deshabilitado
             st.metric("Duración", "•••••• min", "••a ••m ••d ••h ••m ••s")
             st.caption("🔒 Información sensible oculta. Activá la casilla para visualizar.")
     else:
+        # Caso sin evento existente
         st.metric("Duración", "0 min")
         st.caption("0a 0m 0d 0h 0m 0s")
 
+# Mostrar tabla con registros, control de visibilidad con otro checkbox
 def mostrar_tabla_eventos(nombre_evento):
     st.subheader(f"📍 Registros")
     df = obtener_registros(nombre_evento)
@@ -303,10 +326,13 @@ def mostrar_tabla_eventos(nombre_evento):
         st.dataframe(df_oculto, use_container_width=True, hide_index=True)
         st.caption("🔒 Registros ocultos. Activá la casilla para visualizar.")
 
+
+# INTERFAZ PRINCIPAL
 st.title("Reinicia")
 seleccion = st.selectbox("Seleccioná qué registrar o consultar:", list(eventos.keys()))
 opcion = eventos[seleccion]
 
+# Mostrar advertencias de recaidas en día actual
 if opcion in [evento_a, evento_b]:
     dia_semana_hoy = dias_semana_es[datetime.now(colombia).strftime('%A')]
     df_registros = obtener_registros(opcion)
@@ -320,18 +346,20 @@ if opcion in [evento_a, evento_b]:
         hora_max = df_dia["Hora"].max()
         st.error(f"❗ Atención: hay {recaidas_hoy} recaídas registradas para un día como hoy {dia_semana_hoy} entre las {hora_min} y las {hora_max}.")
     else:
-        info = None  # Si tienes función obtener_estadisticas_evento, usar aquí
+        info = None  # Si se tiene función obtener_estadisticas_evento usar aquí
         if info:
             dia_semana, _, hora_texto = info
             st.success(f"Hoy es: {dia_semana}\n ➔ Recaídas: 0\n ➔ {hora_texto}")
         else:
             st.success(f"Hoy es: {dia_semana_hoy}\n ➔ Recaídas: 0\n ➔ Sin registros para mostrar rango horario.")
 
+# Limpiar estado cuando no sea reflexión
 if opcion != "reflexion":
     for key in ["texto_reflexion", "emociones_reflexion", "reset_reflexion"]:
         if key in st.session_state:
             del st.session_state[key]
 
+# Módulo para eventos
 if opcion in [evento_a, evento_b]:
     st.header(f"📍 Registro de evento")
     fecha_hora_evento = datetime.now(colombia)
@@ -339,10 +367,11 @@ if opcion in [evento_a, evento_b]:
     if st.button("☠️ ¿Registrar?"):
         registrar_evento(opcion, fecha_hora_evento)
         st.success(f"Evento '{seleccion}' registrado a las {fecha_hora_evento.strftime('%H:%M:%S')}")
-        st.rerun()
+        # La llamada a st.rerun() está dentro de registrar_evento()
 
     mostrar_racha(opcion, seleccion.split()[0])
 
+# Módulo para reflexiones
 elif opcion == "reflexion":
     st.header("🧠 Registrar reflexión")
 
@@ -381,6 +410,7 @@ elif opcion == "reflexion":
             st.session_state["reset_reflexion"] = True
             st.rerun()
 
+# Módulo historial
 elif opcion == "historial":
     st.header("📑 Historial completo")
     tabs = st.tabs(["🧠 Reflexiones", "✊🏽", "💸"])
