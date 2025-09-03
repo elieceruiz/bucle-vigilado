@@ -293,7 +293,6 @@ def mostrar_racha(nombre_evento, emoji):
 
 # Función para mostrar tabla de eventos, con control para ocultar/mostrar
 def mostrar_tabla_eventos(nombre_evento):
-    st.subheader(f"📍 Registros")
     df = obtener_registros(nombre_evento)
     total_registros = len(df)
 
@@ -358,7 +357,6 @@ if opcion in [evento_a, evento_b]:
 
 # Módulo para registrar reflexiones
 elif opcion == "reflexion":
-    st.header("🧠 Registrar reflexión")
 
     if st.session_state.get("reset_reflexion", False):
         st.session_state["texto_reflexion"] = ""
@@ -400,7 +398,6 @@ elif opcion == "historial":
     tabs = st.tabs(["🧠 Reflexiones", "✊🏽", "💸"])
 
     with tabs[0]:
-        st.subheader("📍 Historial de reflexiones")
         df_r = obtener_reflexiones()
         for i, row in df_r.iterrows():
             with st.expander(f"{row['Fecha']} {row['Emojis']} {row['Hora']}"):
@@ -422,7 +419,6 @@ elif opcion == "historial":
 
 # Función auxiliar para mostrar tabla de eventos con control de visibilidad
 def mostrar_tabla_eventos(nombre_evento):
-    st.subheader(f"📍 Registros")
     df = obtener_registros(nombre_evento)
     total_registros = len(df)
 
