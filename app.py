@@ -7,29 +7,38 @@ from dateutil.relativedelta import relativedelta
 from streamlit_autorefresh import st_autorefresh
 from openai import OpenAI
 
-# Configuración inicial de la página Streamlit
 st.set_page_config(page_title="Reinicia", layout="centered")
-
-# Zona horaria Colombia para manejo local de fechas
 colombia = pytz.timezone("America/Bogota")
 
-# Mapas de días para mostrar en español formato palabra y abreviado
 dias_semana_es = {
-    "Monday": "Lunes", "Tuesday": "Martes", "Wednesday": "Miércoles",
-    "Thursday": "Jueves", "Friday": "Viernes", "Saturday": "Sábado", "Sunday": "Domingo"
+    "Monday": "Lunes",
+    "Tuesday": "Martes",
+    "Wednesday": "Miércoles",
+    "Thursday": "Jueves",
+    "Friday": "Viernes",
+    "Saturday": "Sábado",
+    "Sunday": "Domingo"
 }
-dias_semana_3letras = {0: "Lun", 1: "Mar", 2: "Mié", 3: "Jue", 4: "Vie", 5: "Sáb", 6: "Dom"}
 
-# Conexión MongoDB (URI en secrets)
+dias_semana_3letras = {
+    0: "Lun",
+    1: "Mar",
+    2: "Mié",
+    3: "Jue",
+    4: "Vie",
+    5: "Sáb",
+    6: "Dom"
+}
+
 client = MongoClient(st.secrets["mongo_uri"])
 db = client["registro_bucle"]
 coleccion_eventos = db["eventos"]
 coleccion_reflexiones = db["reflexiones"]
+coleccion_hitos = db["hitos"]
+coleccion_visual = db["log_visual"]
 
-# Cliente OpenAI configurado con API Key
 openai_client = OpenAI(api_key=st.secrets["openai_api_key"])
 
-# Definición nombres de eventos principales
 evento_a = "La Iniciativa Aquella"
 evento_b = "La Iniciativa de Pago"
 eventos = {
@@ -39,14 +48,51 @@ eventos = {
     "💸": evento_b,
 }
 
-# Carga última fecha de eventos para poner en estado inicial
+sistema_categorial = {
+    "1.1": {"categoria": "Dinámicas cotidianas", "subcategoria": "Organización del tiempo",
+            "descriptor": "Manejo de rutinas y distribución del día",
+            "observable": "Relatos sobre horarios de trabajo, estudio, momentos de ocio, tiempo dedicado a la intimidad."},
+    "1.2": {"categoria": "Dinámicas cotidianas", "subcategoria": "Relaciones sociales",
+            "descriptor": "Interacciones que influyen en la vida íntima.",
+            "observable": "Narraciones sobre pareja, amigos, familia; menciones de aprobación o desaprobación social."},
+    "1.3": {"categoria": "Dinámicas cotidianas", "subcategoria": "Contextos de intimidad",
+            "descriptor": "Espacios físicos y virtuales donde se desarrollan las prácticas.",
+            "observable": "Lugares mencionados (casa, moteles, internet, calle), dispositivos usados, condiciones de privacidad."},
+    "1.4": {"categoria": "Dinámicas cotidianas", "subcategoria": "Factores emocionales",
+            "descriptor": "Estados afectivos vinculados al ejercicio de la sexualidad.",
+            "observable": "Expresiones de soledad, ansiedad, deseo, satisfacción o culpa."},
+    "2.1": {"categoria": "Consumo de sexo pago", "subcategoria": "Motivaciones",
+            "descriptor": "Razones personales y sociales para pagar por sexo.",
+            "observable": "Relatos de búsqueda de placer, compañía, evasión, curiosidad, necesidad de afecto."},
+    "2.2": {"categoria": "Consumo de sexo pago", "subcategoria": "Prácticas asociadas",
+            "descriptor": "Formas de acceder y realizar el consumo.",
+            "observable": "Lugares (bares, calles, plataformas digitales), frecuencia, monto pagado, modalidades de encuentro."},
+    "2.3": {"categoria": "Consumo de sexo pago", "subcategoria": "Representaciones",
+            "descriptor": "Significados culturales y personales del sexo pago.",
+            "observable": "Uso de términos como tabú, normal, peligroso, necesario, transgresión; narrativas de estigma o aceptación."},
+    "2.4": {"categoria": "Consumo de sexo pago", "subcategoria": "Efectos en la trayectoria íntima",
+            "descriptor": "Impacto en la experiencia personal y en la memoria íntima.",
+            "observable": "Relatos de aprendizaje, arrepentimiento, culpa, gratificación, comparación con otras prácticas sexuales."},
+    "3.1": {"categoria": "Masturbación", "subcategoria": "Prácticas de autocuidado",
+            "descriptor": "Uso de la masturbación como estrategia de bienestar.",
+            "observable": "Relatos sobre relajación, control del estrés, conciliación del sueño, cuidado de la salud sexual."},
+    "3.2": {"categoria": "Masturbación", "subcategoria": "Placer y exploración del cuerpo",
+            "descriptor": "Búsqueda de satisfacción personal y autoconocimiento.",
+            "observable": "Narrativas sobre fantasías, técnicas usadas, experimentación, referencias a placer físico."},
+    "3.3": {"categoria": "Masturbación", "subcategoria": "Relación con la intimidad",
+            "descriptor": "Vínculo entre la masturbación y la privacidad del sujeto.",
+            "observable": "Relatos de momentos en soledad, rituales íntimos, ocultamiento frente a otros."},
+    "3.4": {"categoria": "Masturbación", "subcategoria": "Representaciones culturales",
+            "descriptor": "Significados sociales y personales atribuidos a la masturbación.",
+            "observable": "Expresiones de libertad, vergüenza, culpa, normalización; uso de términos religiosos o morales."},
+}
+
 for key in [evento_a, evento_b]:
     if key not in st.session_state:
-        ultimo = coleccion_eventos.find_one({"evento": key}, sort=[("fecha_hora", -1)])
-        if ultimo:
-            st.session_state[key] = ultimo["fecha_hora"].astimezone(colombia)
+        evento = coleccion_eventos.find_one({"evento": key}, sort=[("fecha_hora", -1)])
+        if evento:
+            st.session_state[key] = evento["fecha_hora"].astimezone(colombia)
 
-# Función para clasificar reflexión usando OpenAI
 def clasificar_reflexion_openai(texto_reflexion: str) -> str:
     prompt = f"""Sistema categorial para clasificar reflexiones:
 
@@ -78,7 +124,6 @@ Respuesta sólo con el código, ejemplo: 1.4
     )
     return response.choices[0].message.content.strip()
 
-# Guardar reflexión en MongoDB y devolver categoría asignada
 def guardar_reflexion(fecha_hora, emociones, reflexion):
     categoria_auto = clasificar_reflexion_openai(reflexion)
     doc = {
@@ -90,13 +135,10 @@ def guardar_reflexion(fecha_hora, emociones, reflexion):
     coleccion_reflexiones.insert_one(doc)
     return categoria_auto
 
-# Registrar evento en MongoDB y actualizar estado local con st.rerun()
 def registrar_evento(nombre_evento, fecha_hora):
     coleccion_eventos.insert_one({"evento": nombre_evento, "fecha_hora": fecha_hora})
     st.session_state[nombre_evento] = fecha_hora
-    st.rerun()  # Para refrescar app con nuevo estado
 
-# Obtener DataFrame con registros de eventos desde MongoDB
 def obtener_registros(nombre_evento):
     eventos = list(coleccion_eventos.find({"evento": nombre_evento}).sort("fecha_hora", -1))
     filas = []
@@ -107,10 +149,16 @@ def obtener_registros(nombre_evento):
         if anterior:
             detalle = relativedelta(fecha, anterior)
             partes = []
-            for attr in ["years", "months", "days", "hours", "minutes"]:
-                valor = getattr(detalle, attr)
-                if valor:
-                    partes.append(f"{valor}{attr[0]}")
+            if detalle.years:
+                partes.append(f"{detalle.years}a")
+            if detalle.months:
+                partes.append(f"{detalle.months}m")
+            if detalle.days:
+                partes.append(f"{detalle.days}d")
+            if detalle.hours:
+                partes.append(f"{detalle.hours}h")
+            if detalle.minutes:
+                partes.append(f"{detalle.minutes}m")
             diferencia = " ".join(partes)
         dia_semana = dias_semana_3letras[fecha.weekday()]
         filas.append({
@@ -121,7 +169,6 @@ def obtener_registros(nombre_evento):
         })
     return pd.DataFrame(filas)
 
-# Obtener DataFrame con reflexiones desde MongoDB
 def obtener_reflexiones():
     docs = list(coleccion_reflexiones.find({}).sort("fecha_hora", -1))
     rows = []
@@ -129,50 +176,91 @@ def obtener_reflexiones():
         fecha = d["fecha_hora"].astimezone(colombia)
         emojis = " ".join([e["emoji"] for e in d.get("emociones", [])])
         emociones = ", ".join([e["nombre"] for e in d.get("emociones", [])])
-        categoria = d.get("categoria_categorial", "")
+        codigo_cat = d.get("categoria_categorial", "")
+        info_cat = sistema_categorial.get(codigo_cat, {
+            "categoria": "Sin categoría",
+            "subcategoria": "",
+            "descriptor": "",
+            "observable": ""
+        })
         rows.append({
             "Fecha": fecha.strftime("%d-%m-%y"),
             "Hora": fecha.strftime("%H:%M"),
             "Emojis": emojis,
             "Emociones": emociones,
-            "Categoría": categoria,
+            "Categoría": info_cat["categoria"],
+            "Subcategoría": info_cat["subcategoria"],
+            "Descriptor": info_cat.get("descriptor", ""),
+            "Observable": info_cat.get("observable", ""),
             "Reflexión": d.get("reflexion", "")
         })
     return pd.DataFrame(rows)
 
-# Función para mostrar cronómetro actualizado en tiempo real
-def mostrar_racha(nombre_evento):
-    clave_estado = "mostrar_racha"
+def mostrar_racha(nombre_evento, emoji):
+    clave_estado = f"mostrar_racha_{nombre_evento}"
     if clave_estado not in st.session_state:
         st.session_state[clave_estado] = False
-
-    # Checkbox controla mostrar/ocultar cronómetro
-    mostrar = st.checkbox("Ver/ocultar racha", key=clave_estado)
-
-    # Reservar espacio fijo para evitar cambios en diseño
-    placeholder = st.empty()
-
-    if nombre_evento not in st.session_state:
-        placeholder.markdown("No hay evento registrado.")
-        return
-
-    inicio = st.session_state[nombre_evento]
-
-    if mostrar:
-        # Refresca la app cada 1 segundo para actualizar cronómetro
-        st_autorefresh(interval=1000, key="refrescar_cronometro")
-
-        delta = datetime.now(colombia) - inicio
-        duracion_str = str(timedelta(seconds=int(delta.total_seconds())))
-
-        # Actualiza solo el texto del cronómetro dentro del espacio reservado
-        placeholder.markdown(f"### ⏱️ Tiempo transcurrido: {duracion_str}")
+    mostrar = st.checkbox("Ver/ocultar racha", value=st.session_state[clave_estado], key=f"check_{nombre_evento}")
+    st.session_state[clave_estado] = mostrar
+    st.markdown("### ⏱️ Racha")
+    if nombre_evento in st.session_state:
+        st_autorefresh(interval=1000, limit=None, key=f"auto_{nombre_evento}")
+        ultimo = st.session_state[nombre_evento]
+        ahora = datetime.now(colombia)
+        delta = ahora - ultimo
+        detalle = relativedelta(ahora, ultimo)
+        minutos = int(delta.total_seconds() // 60)
+        tiempo = f"{detalle.years}a {detalle.months}m {detalle.days}d {detalle.hours}h {detalle.minutes}m {detalle.seconds}s"
+        dia = ultimo.strftime('%A')
+        dia_es = dias_semana_es.get(dia, dia)
+        if mostrar:
+            st.metric("Duración", f"{minutos:,} min", tiempo)
+            st.caption(f"🔴 Última recaída: {dia_es} {ultimo.strftime('%d-%m-%y %H:%M:%S')}")
+            if nombre_evento == "La Iniciativa Aquella":
+                registros = list(coleccion_eventos.find({"evento": nombre_evento}).sort("fecha_hora", -1))
+                record = max([(registros[i - 1]["fecha_hora"] - registros[i]["fecha_hora"]) for i in range(1, len(registros))], default=delta)
+                total_dias = record.days
+                horas = record.seconds // 3600
+                minutos_rec = (record.seconds % 3600) // 60
+                segundos = record.seconds % 60
+                record_str = f"{total_dias} días, {horas:02d}:{minutos_rec:02d}:{segundos:02d}"
+                umbral = timedelta(days=3)
+                meta_5 = timedelta(days=5)
+                meta_21 = timedelta(days=21)
+                if delta > umbral:
+                    st.success("✅ Superaste la zona crítica de las 72 horas.")
+                if delta > meta_5:
+                    st.success("🌱 ¡Sostenés 5 días! Se está instalando un nuevo hábito.")
+                if delta > meta_21:
+                    st.success("🏗️ 21 días: ya creaste una estructura sólida.")
+                if delta < umbral:
+                    meta_actual = umbral
+                    label_meta = "zona crítica (3 días)"
+                elif delta < meta_5:
+                    meta_actual = meta_5
+                    label_meta = "meta base (5 días)"
+                elif delta < meta_21:
+                    meta_actual = meta_21
+                    label_meta = "meta sólida (21 días)"
+                elif delta < record:
+                    meta_actual = record
+                    label_meta = "tu récord"
+                else:
+                    meta_actual = delta
+                    label_meta = "¡Nuevo récord!"
+                progreso_visual = min(delta.total_seconds() / meta_actual.total_seconds(), 1.0)
+                porcentaje_record = (delta.total_seconds() / record.total_seconds()) * 100
+                st.markdown(f"🏅 **Récord personal:** `{record_str}`")
+                st.markdown(f"📊 **Progreso hacia {label_meta}:** `{progreso_visual * 100:.1f}%`")
+                st.progress(progreso_visual)
+                st.markdown(f"📈 **Progreso frente al récord:** `{porcentaje_record:.1f}%`")
+        else:
+            st.metric("Duración", "•••••• min", "••a ••m ••d ••h ••m ••s")
+            st.caption("🔒 Información sensible oculta. Activá la casilla para visualizar.")
     else:
-        delta = datetime.now(colombia) - inicio
-        duracion_str = str(timedelta(seconds=int(delta.total_seconds())))
-        placeholder.markdown(f"### ⏱️ Tiempo transcurrido (pausado): {duracion_str}")
+        st.metric("Duración", "0 min")
+        st.caption("0a 0m 0d 0h 0m 0s")
 
-# Mostrar tabla de eventos con control de visibilidad
 def mostrar_tabla_eventos(nombre_evento):
     st.subheader(f"📍 Registros")
     df = obtener_registros(nombre_evento)
@@ -198,12 +286,10 @@ def mostrar_tabla_eventos(nombre_evento):
         st.dataframe(df_oculto, use_container_width=True, hide_index=True)
         st.caption("🔒 Registros ocultos. Activá la casilla para visualizar.")
 
-# INTERFAZ PRINCIPAL
 st.title("Reinicia")
 seleccion = st.selectbox("Seleccioná qué registrar o consultar:", list(eventos.keys()))
 opcion = eventos[seleccion]
 
-# Mostrar advertencias según eventos el día actual
 if opcion in [evento_a, evento_b]:
     dia_semana_hoy = dias_semana_es[datetime.now(colombia).strftime('%A')]
     df_registros = obtener_registros(opcion)
@@ -217,7 +303,12 @@ if opcion in [evento_a, evento_b]:
         hora_max = df_dia["Hora"].max()
         st.error(f"❗ Atención: hay {recaidas_hoy} recaídas registradas para un día como hoy {dia_semana_hoy} entre las {hora_min} y las {hora_max}.")
     else:
-        st.success(f"Hoy es: {dia_semana_hoy}\n ➔ Recaídas: 0\n ➔ Sin registros para mostrar rango horario.")
+        info = obtener_estadisticas_evento(opcion)
+        if info:
+            dia_semana, _, hora_texto = info
+            st.success(f"Hoy es: {dia_semana}\n ➔ Recaídas: 0\n ➔ {hora_texto}")
+        else:
+            st.success(f"Hoy es: {dia_semana_hoy}\n ➔ Recaídas: 0\n ➔ Sin registros para mostrar rango horario.")
 
 if opcion != "reflexion":
     for key in ["texto_reflexion", "emociones_reflexion", "reset_reflexion"]:
@@ -231,8 +322,9 @@ if opcion in [evento_a, evento_b]:
     if st.button("☠️ ¿Registrar?"):
         registrar_evento(opcion, fecha_hora_evento)
         st.success(f"Evento '{seleccion}' registrado a las {fecha_hora_evento.strftime('%H:%M:%S')}")
+        st.rerun()
 
-    mostrar_racha(opcion)
+    mostrar_racha(opcion, seleccion.split()[0])
 
 elif opcion == "reflexion":
     st.header("🧠 Registrar reflexión")
@@ -286,12 +378,17 @@ elif opcion == "historial":
                 st.write(f"**Estados de ánimo:** {row['Emociones']}")
                 st.markdown(f"**Categoría:** {row['Categoría']}")
                 st.markdown(f"**Subcategoría:** {row['Subcategoría']}")
+                if row['Descriptor']:
+                    st.markdown(f"**Descriptor:** {row['Descriptor']}")
+                if row['Observable']:
+                    st.markdown(f"**Observable:** {row['Observable']}")
+
     with tabs[1]:
         mostrar_tabla_eventos(evento_a)
+
     with tabs[2]:
         mostrar_tabla_eventos(evento_b)
 
-# Función para mostrar tabla de eventos con opción de ocultar registros
 def mostrar_tabla_eventos(nombre_evento):
     st.subheader(f"📍 Registros")
     df = obtener_registros(nombre_evento)
