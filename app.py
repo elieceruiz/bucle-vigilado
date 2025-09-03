@@ -4,7 +4,8 @@ from pymongo import MongoClient
 import pytz
 import pandas as pd
 from dateutil.relativedelta import relativedelta
-from streamlit_autorefresh import st_autorefresh
+import time
+import threading
 from openai import OpenAI
 
 st.set_page_config(page_title="Reinicia", layout="centered")
@@ -196,6 +197,22 @@ def obtener_reflexiones():
         })
     return pd.DataFrame(rows)
 
+def mostrar_cronometro_live(inicio, nombre_evento):
+    import threading
+    cronometro_placeholder = st.empty()
+    segundos_iniciales = int((datetime.now(colombia) - inicio).total_seconds())
+
+    def actualizar_cronometro():
+        i = segundos_iniciales
+        while True:
+            duracion_str = str(timedelta(seconds=i))
+            cronometro_placeholder.markdown(f"### ⏱️ Tiempo transcurrido desde '{nombre_evento}': {duracion_str}")
+            time.sleep(1)
+            i += 1
+
+    hilo = threading.Thread(target=actualizar_cronometro, daemon=True)
+    hilo.start()
+
 def mostrar_racha(nombre_evento, emoji):
     clave_estado = f"mostrar_racha_{nombre_evento}"
     if clave_estado not in st.session_state:
@@ -204,16 +221,16 @@ def mostrar_racha(nombre_evento, emoji):
     st.session_state[clave_estado] = mostrar
     st.markdown("### ⏱️ Racha")
     if nombre_evento in st.session_state:
-        st_autorefresh(interval=1000, limit=None, key=f"auto_{nombre_evento}")
         ultimo = st.session_state[nombre_evento]
-        ahora = datetime.now(colombia)
-        delta = ahora - ultimo
-        detalle = relativedelta(ahora, ultimo)
-        minutos = int(delta.total_seconds() // 60)
-        tiempo = f"{detalle.years}a {detalle.months}m {detalle.days}d {detalle.hours}h {detalle.minutes}m {detalle.seconds}s"
-        dia = ultimo.strftime('%A')
-        dia_es = dias_semana_es.get(dia, dia)
+        mostrar_cronometro_live(ultimo, nombre_evento)
         if mostrar:
+            ahora = datetime.now(colombia)
+            delta = ahora - ultimo
+            detalle = relativedelta(ahora, ultimo)
+            minutos = int(delta.total_seconds() // 60)
+            tiempo = f"{detalle.years}a {detalle.months}m {detalle.days}d {detalle.hours}h {detalle.minutes}m {detalle.seconds}s"
+            dia = ultimo.strftime('%A')
+            dia_es = dias_semana_es.get(dia, dia)
             st.metric("Duración", f"{minutos:,} min", tiempo)
             st.caption(f"🔴 Última recaída: {dia_es} {ultimo.strftime('%d-%m-%y %H:%M:%S')}")
             if nombre_evento == "La Iniciativa Aquella":
@@ -303,7 +320,7 @@ if opcion in [evento_a, evento_b]:
         hora_max = df_dia["Hora"].max()
         st.error(f"❗ Atención: hay {recaidas_hoy} recaídas registradas para un día como hoy {dia_semana_hoy} entre las {hora_min} y las {hora_max}.")
     else:
-        info = obtener_estadisticas_evento(opcion)
+        info = None  # Si tienes función obtener_estadisticas_evento, usar aquí
         if info:
             dia_semana, _, hora_texto = info
             st.success(f"Hoy es: {dia_semana}\n ➔ Recaídas: 0\n ➔ {hora_texto}")
