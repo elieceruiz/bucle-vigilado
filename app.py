@@ -241,7 +241,7 @@ def mostrar_racha(nombre_evento, emoji):
         if nombre_evento == evento_a:
             registros = list(coleccion_eventos.find({"evento": nombre_evento}).sort("fecha_hora", -1))
             record = max([(registros[i - 1]["fecha_hora"] - registros[i]["fecha_hora"]) 
-                          for i in range(1, len(registros))], default=delta) if len(registros) > 1 else delta
+                         for i in range(1, len(registros))], default=delta) if len(registros) > 1 else delta
             total_dias = record.days
             horas = record.seconds // 3600
             minutos_rec = (record.seconds % 3600) // 60
@@ -328,15 +328,18 @@ if opcion in [evento_a, evento_b]:
     df_registros = obtener_registros(opcion)
     df_dia = df_registros[df_registros["Día"] == dias_semana_3letras[datetime.now(colombia).weekday()]]
     recaidas_hoy = len(df_dia)
-    if recaidas_hoy == 1:
-        hora_unica = df_dia.iloc[0]["Hora"]
-        st.error(f"❗ Atención: hay 1 recaída registrada para un día como hoy {dia_semana_hoy} a las {hora_unica}.")
-    elif recaidas_hoy > 1:
-        hora_min = df_dia["Hora"].min()
-        hora_max = df_dia["Hora"].max()
-        st.error(f"❗ Atención: hay {recaidas_hoy} recaídas registradas para un día como hoy {dia_semana_hoy} entre las {hora_min} y las {hora_max}.")
-    else:
-        st.success(f"Hoy es: {dia_semana_hoy}. Sin registros para mostrar. Congrats!!! ")
+
+    # Solo mostrar mensajes si el checkbox de mostrar racha está activo
+    if st.session_state.get(f"check_{opcion}", False):
+        if recaidas_hoy == 1:
+            hora_unica = df_dia.iloc[0]["Hora"]
+            st.error(f"❗ Atención: hay 1 recaída registrada para un día como hoy {dia_semana_hoy} a las {hora_unica}.")
+        elif recaidas_hoy > 1:
+            hora_min = df_dia["Hora"].min()
+            hora_max = df_dia["Hora"].max()
+            st.error(f"❗ Atención: hay {recaidas_hoy} recaídas registradas para un día como hoy {dia_semana_hoy} entre las {hora_min} y las {hora_max}.")
+        else:
+            st.success(f"Hoy es: {dia_semana_hoy}. Sin registros para mostrar. Congrats!!! ")
 
 # Limpieza de estados temporales para reflexiones si la opción no es reflexion
 if opcion != "reflexion":
