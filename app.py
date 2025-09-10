@@ -48,7 +48,6 @@ eventos = {
 
 # Sistema categorial para clasificaciones automáticas en reflexiones
 sistema_categorial = {
-    # Cada categoría tiene descriptor y observable para análisis
     "1.1": {"categoria": "Dinámicas cotidianas", "subcategoria": "Organización del tiempo",
             "descriptor": "Manejo de rutinas y distribución del día",
             "observable": "Relatos sobre horarios de trabajo, estudio, momentos de ocio, tiempo dedicado a la intimidad."},
@@ -142,7 +141,7 @@ def guardar_reflexion(fecha_hora, emociones, reflexion):
 def registrar_evento(nombre_evento, fecha_hora):
     coleccion_eventos.insert_one({"evento": nombre_evento, "fecha_hora": fecha_hora})
     st.session_state[nombre_evento] = fecha_hora
-    st.rerun()  # Fuerza recarga para reflejar cambios
+    st.rerun()
 
 # Obtener DataFrame con registros ordenados por fecha y diferencias temporales
 def obtener_registros(nombre_evento):
@@ -205,21 +204,17 @@ def obtener_reflexiones():
 
 # Función para mostrar el cronómetro (racha) con actualización periódica condicional
 def mostrar_racha(nombre_evento, emoji):
-    # Clave para llevar control en session_state del estado del checkbox
     clave_estado = f"mostrar_racha_{nombre_evento}"
     if clave_estado not in st.session_state:
         st.session_state[clave_estado] = False
-    # El checkbox usa key y controla visibilidad cronómetro dinámicamente
     mostrar = st.checkbox("Ver/ocultar racha", key=f"check_{nombre_evento}")
     st.markdown("### ⏱️ Racha")
 
-    # Si no hay evento registrado, mostrar duración cero
     if nombre_evento not in st.session_state:
         st.metric("Duración", "0 min")
         st.caption("0a 0m 0d 0h 0m 0s")
         return
 
-    # Si el checkbox está activo, usar autorefresh para actualizar la app cada segundo
     if mostrar:
         st_autorefresh(interval=1000, limit=None, key=f"autorefresh_{nombre_evento}")
 
@@ -232,12 +227,10 @@ def mostrar_racha(nombre_evento, emoji):
     dia = ultimo.strftime('%A')
     dia_es = dias_semana_es.get(dia, dia)
 
-    # Mostrar la duración y también información detallada
     if mostrar:
         st.metric("Duración", f"{minutos:,} min", tiempo)
         st.caption(f"🔴 Última recaída: {dia_es} {ultimo.strftime('%d-%m-%y %H:%M:%S')}")
 
-        # Si es 'La Iniciativa Aquella', mostrar datos de récord y metas
         if nombre_evento == evento_a:
             registros = list(coleccion_eventos.find({"evento": nombre_evento}).sort("fecha_hora", -1))
             record = max([(registros[i - 1]["fecha_hora"] - registros[i]["fecha_hora"]) 
@@ -248,12 +241,10 @@ def mostrar_racha(nombre_evento, emoji):
             segundos = record.seconds % 60
             record_str = f"{total_dias} días, {horas:02d}:{minutos_rec:02d}:{segundos:02d}"
 
-            # Definir thresholds de metas
             umbral = timedelta(days=3)
             meta_5 = timedelta(days=5)
             meta_21 = timedelta(days=21)
 
-            # Mensajes según progreso
             if delta > umbral:
                 st.success("✅ Superaste la zona crítica de las 72 horas.")
             if delta > meta_5:
@@ -261,7 +252,6 @@ def mostrar_racha(nombre_evento, emoji):
             if delta > meta_21:
                 st.success("🏗️ 21 días: ya creaste una estructura sólida.")
 
-            # Determinar meta actual para la barra de progreso
             if delta < umbral:
                 meta_actual = umbral
                 label_meta = "zona crítica (3 días)"
@@ -287,11 +277,10 @@ def mostrar_racha(nombre_evento, emoji):
             st.markdown(f"📈 **Progreso frente al récord:** `{porcentaje_record:.1f}%`")
 
     else:
-        # Si checkbox desactivado, mostrar datos sensibles ocultos
         st.metric("Duración", "•••••• min", "••a ••m ••d ••h ••m ••s")
         st.caption("🔒 Información sensible oculta. Activá la casilla para visualizar.")
 
-# Función para mostrar tabla de eventos, con control para ocultar/mostrar
+# Función para mostrar tabla de eventos con control de visibilidad
 def mostrar_tabla_eventos(nombre_evento):
     df = obtener_registros(nombre_evento)
     total_registros = len(df)
@@ -300,7 +289,6 @@ def mostrar_tabla_eventos(nombre_evento):
         return "•" * len(str(numero))
 
     mostrar = st.checkbox("Ver/Ocultar registros", value=False, key=f"mostrar_{nombre_evento}")
-
     total_mostrar = str(total_registros) if mostrar else ocultar_numero_con_punticos(total_registros)
     st.markdown(f"**Total de registros:** {total_mostrar}")
 
@@ -316,76 +304,53 @@ def mostrar_tabla_eventos(nombre_evento):
         st.dataframe(df_oculto, use_container_width=True, hide_index=True)
         st.caption("🔒 Registros ocultos. Activá la casilla para visualizar.")
 
-
 # INTERFAZ PRINCIPAL DE LA APP
+
 st.title("Reinicia")
 
 # Selector para el tipo de acción o consulta
 seleccion = st.selectbox("Seleccioná qué registrar o consultar:", list(eventos.keys()))
 opcion = eventos[seleccion]
 
-# --- Inicio de bloque agregado para mostrar conteo días consecutivos del día actual sin evento ---
-
+# --- Bloque agregado para mostrar número de días iguales al día actual desde última recaída ---
 if opcion in [evento_a, evento_b]:
-    dia_actual_abr = dias_semana_3letras[datetime.now(colombia).weekday()]
-    dia_actual_esp = dias_semana_es[datetime.now(colombia).strftime('%A')]
-
-    # Obtener solo registros para el evento seleccionado y filtrar solo para el día de la semana actual
     df_registros = obtener_registros(opcion)
-    df_dia_actual = df_registros[df_registros["Día"] == dia_actual_abr]
+    if not df_registros.empty:
+        fecha_ultimo_str = df_registros.iloc[0]["Fecha"]
+        fecha_ultimo = datetime.strptime(fecha_ultimo_str, "%d-%m-%y").date()
+        hoy = datetime.now(colombia).date()
 
-    # Ordenar fechas de registros solo para el día actual
-    fechas_registro = []
-    for fecha_str in df_dia_actual["Fecha"]:
-        # Convertir string "dd-mm-yy" a datetime con tzinfo
-        dt = datetime.strptime(fecha_str, "%d-%m-%y").replace(tzinfo=colombia)
-        fechas_registro.append(dt)
-    # Orden descendente fechas
-    fechas_registro.sort(reverse=True)
+        delta_dias = (hoy - fecha_ultimo).days
+        dia_semana_ultimo = fecha_ultimo.weekday()
+        dia_semana_hoy = hoy.weekday()
 
-    hoy = datetime.now(colombia).replace(hour=0, minute=0, second=0, microsecond=0)
+        semanas_completas = delta_dias // 7
+        dias_restantes = delta_dias % 7
 
-    # Contar martess consecutivos sin evento hacia atrás empezando desde martes pasado
-    consecutivos_sin_evento = 0
+        dia_adelantado = (dia_semana_ultimo + dias_restantes) % 7
 
-    # El día de la semana como número para comparación (martes=1 por dias_semana_3letras)
-    dia_semana_num = datetime.now(colombia).weekday()
+        if dias_restantes > 0 and dia_adelantado >= dia_semana_hoy:
+            semanas_completas += 1
 
-    # Comenzar desde 1 semana atrás (martes pasado)
-    iterador_fecha = hoy - timedelta(weeks=1)
+        contar = semanas_completas
 
-    while True:
-        if iterador_fecha in fechas_registro:
-            # Hubo evento en este martes, termina conteo
-            break
+        if contar == 0:
+            mensaje = f"El evento fue hoy o ayer."
+        elif contar == 1:
+            mensaje = f"Llevás 1 {dias_semana_es[hoy.strftime('%A')]} sin evento. Si hoy sigue así, serán 2."
         else:
-            # No hubo evento, sumamos 1
-            consecutivos_sin_evento += 1
-            # Bajamos una semana más atras
-            iterador_fecha -= timedelta(weeks=1)
-            # Si superamos cierto limite (p.ej 100 semanas) para evitar loop infinito
-            if consecutivos_sin_evento > 100:
-                break
-
-    # Construcción del mensaje motivador según conteo
-    if consecutivos_sin_evento == 0:
-        mensaje = f"El {dia_actual_esp} pasado hubo registro. Hoy es una nueva oportunidad para empezar bien."
-    elif consecutivos_sin_evento == 1:
-        mensaje = f"Llevás 1 {dia_actual_esp} sin evento. Si hoy sigue así, serán 2 {dia_actual_esp} seguidos."
+            mensaje = f"Llevás {contar} {dias_semana_es[hoy.strftime('%A')]} seguidos sin evento."
     else:
-        mensaje = f"Llevás {consecutivos_sin_evento} {dia_actual_esp} seguidos sin evento. ¡Muy bien!"
-
+        mensaje = f"No hay registros previos. Hoy puede ser el primer día sin evento."
     st.info(mensaje)
-# --- Fin bloque agregado ---
 
-# Validación y advertencias de recaídas para los eventos principales
+# Validación y alertas de recaídas para eventos principales
 if opcion in [evento_a, evento_b]:
     dia_semana_hoy = dias_semana_es[datetime.now(colombia).strftime('%A')]
     df_registros = obtener_registros(opcion)
     df_dia = df_registros[df_registros["Día"] == dias_semana_3letras[datetime.now(colombia).weekday()]]
     recaidas_hoy = len(df_dia)
 
-    # Solo mostrar mensajes si el checkbox de mostrar racha está activo
     if st.session_state.get(f"check_{opcion}", False):
         if recaidas_hoy == 1:
             hora_unica = df_dia.iloc[0]["Hora"]
@@ -397,13 +362,13 @@ if opcion in [evento_a, evento_b]:
         else:
             st.success(f"Hoy es: {dia_semana_hoy}. Sin registros para mostrar. Congrats!!! ")
 
-# Limpieza de estados temporales para reflexiones si la opción no es reflexion
+# Limpieza estados sesión temporal para reflexiones
 if opcion != "reflexion":
     for key in ["texto_reflexion", "emociones_reflexion", "reset_reflexion"]:
         if key in st.session_state:
             del st.session_state[key]
 
-# Mostrar módulo para registrar eventos y cronómetro
+# Módulo registrar evento y cronómetro
 if opcion in [evento_a, evento_b]:
     fecha_hora_evento = datetime.now(colombia)
 
@@ -414,9 +379,8 @@ if opcion in [evento_a, evento_b]:
 
     mostrar_racha(opcion, seleccion.split()[0])
 
-# Módulo para registrar reflexiones
+# Módulo para reflexiones con clasificación automática
 elif opcion == "reflexion":
-
     if st.session_state.get("reset_reflexion", False):
         st.session_state["texto_reflexion"] = ""
         st.session_state["emociones_reflexion"] = []
@@ -452,7 +416,7 @@ elif opcion == "reflexion":
             st.session_state["reset_reflexion"] = True
             st.rerun()
 
-# Módulo para mostrar historial completo
+# Módulo historial completo con tabs
 elif opcion == "historial":
     tabs = st.tabs(["🧠", "✊🏽", "💸"])
 
@@ -476,7 +440,7 @@ elif opcion == "historial":
     with tabs[2]:
         mostrar_tabla_eventos(evento_b)
 
-# Función auxiliar para mostrar tabla de eventos con control de visibilidad
+# Función para tabla de eventos con control de visibilidad
 def mostrar_tabla_eventos(nombre_evento):
     df = obtener_registros(nombre_evento)
     total_registros = len(df)
@@ -485,7 +449,6 @@ def mostrar_tabla_eventos(nombre_evento):
         return "•" * len(str(numero))
 
     mostrar = st.checkbox("Ver/Ocultar registros", value=False, key=f"mostrar_{nombre_evento}")
-
     total_mostrar = str(total_registros) if mostrar else ocultar_numero_con_punticos(total_registros)
     st.markdown(f"**Total de registros:** {total_mostrar}")
 
