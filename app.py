@@ -300,6 +300,7 @@ def mostrar_tabla_eventos(nombre_evento):
         return "•" * len(str(numero))
 
     mostrar = st.checkbox("Ver/Ocultar registros", value=False, key=f"mostrar_{nombre_evento}")
+
     total_mostrar = str(total_registros) if mostrar else ocultar_numero_con_punticos(total_registros)
     st.markdown(f"**Total de registros:** {total_mostrar}")
 
@@ -315,12 +316,67 @@ def mostrar_tabla_eventos(nombre_evento):
         st.dataframe(df_oculto, use_container_width=True, hide_index=True)
         st.caption("🔒 Registros ocultos. Activá la casilla para visualizar.")
 
+
 # INTERFAZ PRINCIPAL DE LA APP
 st.title("Reinicia")
 
 # Selector para el tipo de acción o consulta
 seleccion = st.selectbox("Seleccioná qué registrar o consultar:", list(eventos.keys()))
 opcion = eventos[seleccion]
+
+# --- Inicio de bloque agregado para mostrar conteo días consecutivos del día actual sin evento ---
+
+if opcion in [evento_a, evento_b]:
+    dia_actual_abr = dias_semana_3letras[datetime.now(colombia).weekday()]
+    dia_actual_esp = dias_semana_es[datetime.now(colombia).strftime('%A')]
+
+    # Obtener solo registros para el evento seleccionado y filtrar solo para el día de la semana actual
+    df_registros = obtener_registros(opcion)
+    df_dia_actual = df_registros[df_registros["Día"] == dia_actual_abr]
+
+    # Ordenar fechas de registros solo para el día actual
+    fechas_registro = []
+    for fecha_str in df_dia_actual["Fecha"]:
+        # Convertir string "dd-mm-yy" a datetime con tzinfo
+        dt = datetime.strptime(fecha_str, "%d-%m-%y").replace(tzinfo=colombia)
+        fechas_registro.append(dt)
+    # Orden descendente fechas
+    fechas_registro.sort(reverse=True)
+
+    hoy = datetime.now(colombia).replace(hour=0, minute=0, second=0, microsecond=0)
+
+    # Contar martess consecutivos sin evento hacia atrás empezando desde martes pasado
+    consecutivos_sin_evento = 0
+
+    # El día de la semana como número para comparación (martes=1 por dias_semana_3letras)
+    dia_semana_num = datetime.now(colombia).weekday()
+
+    # Comenzar desde 1 semana atrás (martes pasado)
+    iterador_fecha = hoy - timedelta(weeks=1)
+
+    while True:
+        if iterador_fecha in fechas_registro:
+            # Hubo evento en este martes, termina conteo
+            break
+        else:
+            # No hubo evento, sumamos 1
+            consecutivos_sin_evento += 1
+            # Bajamos una semana más atras
+            iterador_fecha -= timedelta(weeks=1)
+            # Si superamos cierto limite (p.ej 100 semanas) para evitar loop infinito
+            if consecutivos_sin_evento > 100:
+                break
+
+    # Construcción del mensaje motivador según conteo
+    if consecutivos_sin_evento == 0:
+        mensaje = f"El {dia_actual_esp} pasado hubo registro. Hoy es una nueva oportunidad para empezar bien."
+    elif consecutivos_sin_evento == 1:
+        mensaje = f"Llevás 1 {dia_actual_esp} sin evento. Si hoy sigue así, serán 2 {dia_actual_esp} seguidos."
+    else:
+        mensaje = f"Llevás {consecutivos_sin_evento} {dia_actual_esp} seguidos sin evento. ¡Muy bien!"
+
+    st.info(mensaje)
+# --- Fin bloque agregado ---
 
 # Validación y advertencias de recaídas para los eventos principales
 if opcion in [evento_a, evento_b]:
