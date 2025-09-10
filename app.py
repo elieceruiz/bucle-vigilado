@@ -335,7 +335,7 @@ if opcion in [evento_a, evento_b]:
         contar = semanas_completas
 
         if contar == 0:
-            mensaje = f"El evento fue hoy o ayer."
+            mensaje = f"El evento ocurrió recientemente, por lo que aún no hay días completos iguales al día actual sin recaídas."
         elif contar == 1:
             mensaje = f"Llevás 1 {dias_semana_es[hoy.strftime('%A')]} sin evento. Si hoy sigue así, serán 2."
         else:
