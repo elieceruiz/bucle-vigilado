@@ -337,7 +337,7 @@ if opcion in [evento_a, evento_b]:
         if contar == 0:
             mensaje = f"El evento ocurrió recientemente, por lo que aún no hay días completos iguales al día actual sin recaídas."
         elif contar == 1:
-            mensaje = f"Llevás 1 {dias_semana_es[hoy.strftime('%A')]} sin evento. Si hoy sigue así, serán 2."
+            mensaje = f"Si terminas hoy, sería tu primer  {dias_semana_es[hoy.strftime('%A')]} sin evento."
         else:
             mensaje = f"Llevás {contar} {dias_semana_es[hoy.strftime('%A')]} seguidos sin evento."
     else:
