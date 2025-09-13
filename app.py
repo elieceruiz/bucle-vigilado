@@ -13,29 +13,27 @@ from openai import OpenAI
 st.set_page_config(page_title="Reinicia", layout="centered")
 colombia = pytz.timezone("America/Bogota")
 
-# Diccionarios para días
+# Días
 dias_semana_es = {
     "Monday": "Lunes", "Tuesday": "Martes", "Wednesday": "Miércoles",
     "Thursday": "Jueves", "Friday": "Viernes", "Saturday": "Sábado", "Sunday": "Domingo"
 }
-dias_semana_3letras = {
-    0: "Lun", 1: "Mar", 2: "Mié", 3: "Jue", 4: "Vie", 5: "Sáb", 6: "Dom"
-}
+dias_semana_3letras = {0: "Lun", 1: "Mar", 2: "Mié", 3: "Jue", 4: "Vie", 5: "Sáb", 6: "Dom"}
 
 # -------------------------
-# Conexiones (secrets)
+# Conexión a MongoDB y OpenAI
 # -------------------------
 client = MongoClient(st.secrets["mongo_uri"])
 db = client["registro_bucle"]
 coleccion_eventos = db["eventos"]
 coleccion_reflexiones = db["reflexiones"]
-coleccion_hitos = db.get("hitos")
-coleccion_visual = db.get("log_visual")
+coleccion_hitos = db["hitos"]
+coleccion_visual = db["log_visual"]
 
 openai_client = OpenAI(api_key=st.secrets["openai_api_key"])
 
 # -------------------------
-# Constantes y sistemas
+# Constantes y mapeos
 # -------------------------
 evento_a = "La Iniciativa Aquella"
 evento_b = "La Iniciativa de Pago"
@@ -86,16 +84,26 @@ sistema_categorial = {
 }
 
 # -------------------------
-# Cargar último evento en session_state (si existe)
+# Inicializar session_state con claves necesarias
 # -------------------------
+defaults = {
+    "reset_reflexion": False,
+    evento_a: None,
+    evento_b: None,
+}
+for k, v in defaults.items():
+    if k not in st.session_state:
+        st.session_state[k] = v
+
+# cargar última vez de eventos principales en session_state (si existen)
 for key in [evento_a, evento_b]:
-    if key not in st.session_state:
+    if st.session_state.get(key) is None:
         evento = coleccion_eventos.find_one({"evento": key}, sort=[("fecha_hora", -1)])
         if evento:
             st.session_state[key] = evento["fecha_hora"].astimezone(colombia)
 
 # -------------------------
-# Funciones OpenAI y DB
+# Funciones OpenAI / DB
 # -------------------------
 def clasificar_reflexion_openai(texto_reflexion: str) -> str:
     prompt = f"""Sistema categorial para clasificar reflexiones:
@@ -129,6 +137,7 @@ Respuesta sólo con el código, ejemplo: 1.4
         )
         return response.choices[0].message.content.strip()
     except Exception:
+        # no queremos que falle la app si OpenAI falla
         st.warning("Clasificación automática no disponible (OpenAI). Se guardará sin categoría.")
         return ""
 
@@ -146,11 +155,11 @@ def guardar_reflexion(fecha_hora, emociones, reflexion):
 def registrar_evento(nombre_evento, fecha_hora):
     coleccion_eventos.insert_one({"evento": nombre_evento, "fecha_hora": fecha_hora})
     st.session_state[nombre_evento] = fecha_hora
-    # rerun para actualizar UI luego del insert (solo aquí)
+    # actualizar UI después del insert
     st.rerun()
 
 # -------------------------
-# Lectura cacheada para rendimiento
+# Lecturas cacheadas
 # -------------------------
 @st.cache_data(ttl=5)
 def obtener_registros(nombre_evento):
@@ -207,13 +216,12 @@ def obtener_reflexiones():
     return pd.DataFrame(rows)
 
 # -------------------------
-# Utilidades visuales
+# Utilidades visuales y componentes
 # -------------------------
 def ocultar_numero_con_punticos(numero):
     return "•" * len(str(numero))
 
 def mostrar_tabla_eventos(nombre_evento):
-    # spinner mientras se recuperan/cargan los registros cacheados
     with st.spinner("Cargando registros..."):
         df = obtener_registros(nombre_evento)
     total_registros = len(df)
@@ -279,7 +287,7 @@ def mostrar_racha(nombre_evento, emoji):
         st.metric("Duración", f"{minutos:,} min", tiempo)
         st.caption(f"🔴 Última recaída: {dia_es} {ultimo.strftime('%d-%m-%y %H:%M:%S')}")
 
-        # cálculo de récord personal (ordenado ascendente para evitar restas negativas)
+        # cálculo de récord personal (orden ascendente)
         if nombre_evento == evento_a:
             registros = list(coleccion_eventos.find({"evento": nombre_evento}).sort("fecha_hora", 1))
             if len(registros) > 1:
@@ -345,7 +353,7 @@ st.title("Reinicia")
 seleccion = st.selectbox("Seleccioná qué registrar o consultar:", list(eventos.keys()))
 opcion = eventos[seleccion]
 
-# --- Bloque de días iguales al actual desde última recaída ---
+# Bloque: días iguales al día actual desde última recaída
 if opcion in [evento_a, evento_b]:
     df_registros = obtener_registros(opcion)
     if not df_registros.empty:
@@ -367,7 +375,7 @@ if opcion in [evento_a, evento_b]:
         mensaje = f"No hay registros previos. Hoy puede ser el primer día sin evento."
     st.info(mensaje)
 
-# --- Validaciones y alertas para hoy ---
+# Validaciones y alertas para hoy
 if opcion in [evento_a, evento_b]:
     dia_semana_hoy = dias_semana_es[datetime.now(colombia).strftime('%A')]
     df_registros = obtener_registros(opcion)
@@ -385,22 +393,20 @@ if opcion in [evento_a, evento_b]:
         else:
             st.success(f"Hoy es: {dia_semana_hoy}. Sin registros para mostrar. Congrats!!! ")
 
-# --- Limpieza estado sesión temporal para reflexiones ---
+# Limpieza estado sesión temporal para reflexiones
 if opcion != "reflexion":
     for key in ["texto_reflexion", "emociones_reflexion", "reset_reflexion"]:
         if key in st.session_state:
             st.session_state.pop(key)
 
-# --- Módulo registrar evento y cronómetro ---
+# Módulo registrar evento y cronómetro
 if opcion in [evento_a, evento_b]:
     fecha_hora_evento = datetime.now(colombia)
-
     if st.button("☠️ ¿Registrar?"):
         registrar_evento(opcion, fecha_hora_evento)
-
     mostrar_racha(opcion, seleccion.split()[0])
 
-# --- Módulo reflexiones con clasificación automática ---
+# Módulo reflexiones con clasificación automática
 elif opcion == "reflexion":
     if st.session_state.get("reset_reflexion", False):
         st.session_state["texto_reflexion"] = ""
@@ -414,7 +420,6 @@ elif opcion == "reflexion":
         st.caption(f"📌 Última registrada: {fecha.strftime('%d-%m-%y %H:%M:%S')}")
 
     fecha_hora_reflexion = datetime.now(colombia)
-
     emociones_opciones = [
         "😰 Ansioso", "😡 Irritado / Rabia contenida", "💪 Firme / Decidido",
         "😌 Aliviado / Tranquilo", "😓 Culpable", "🥱 Apático / Cansado", "😔 Triste"
@@ -429,7 +434,6 @@ elif opcion == "reflexion":
     texto_reflexion = st.text_area("¿Querés dejar algo escrito?", height=150, key="texto_reflexion")
 
     puede_guardar = texto_reflexion.strip() or emociones
-
     if puede_guardar:
         if st.button("📝 Guardar reflexión"):
             categoria_asignada = guardar_reflexion(fecha_hora_reflexion, emociones, texto_reflexion)
@@ -437,15 +441,12 @@ elif opcion == "reflexion":
             st.session_state["reset_reflexion"] = True
             st.rerun()
 
-# --- Módulo historial completo con tabs ---
+# Módulo historial completo con tabs
 elif opcion == "historial":
     tabs = st.tabs(["🧠", "✊🏽", "💸"])
-
     with tabs[0]:
         mostrar_reflexiones_en_historial()
-
     with tabs[1]:
         mostrar_tabla_eventos(evento_a)
-
     with tabs[2]:
         mostrar_tabla_eventos(evento_b)
