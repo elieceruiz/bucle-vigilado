@@ -145,7 +145,6 @@ def obtener_registros(nombre):
         })
 
     df = pd.DataFrame(filas)
-
     df.index = range(len(df), 0, -1)
     df.index.name = "#"
 
@@ -201,9 +200,10 @@ def mostrar_racha(nombre_evento, emoji):
     delta = ahora - inicio
     d = relativedelta(ahora, inicio)
 
+    # ⚡ Cambio mínimo: usar round para que no salte hacia abajo
     st.metric(
         "Duración",
-        f"{int(delta.total_seconds() // 60)} min",
+        f"{int(round(delta.total_seconds() / 60))} min",
         formatear_delta(d, incluir_segundos=True)
     )
 
