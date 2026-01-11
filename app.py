@@ -14,11 +14,6 @@ st.set_page_config(page_title="Reinicia", layout="centered")
 
 colombia = pytz.timezone("America/Bogota")
 
-dias_semana_es = {
-    "Monday": "Lunes", "Tuesday": "Martes", "Wednesday": "Miércoles",
-    "Thursday": "Jueves", "Friday": "Viernes", "Saturday": "Sábado", "Sunday": "Domingo"
-}
-
 dias_semana_3letras = {0: "Lun", 1: "Mar", 2: "Mié", 3: "Jue", 4: "Vie", 5: "Sáb", 6: "Dom"}
 
 # =========================
@@ -160,7 +155,7 @@ def guardar_reflexion(fecha, emociones, texto):
 def registrar_evento(nombre, fecha):
     coleccion_eventos.insert_one({"evento": nombre, "fecha_hora": fecha})
     st.session_state[nombre] = fecha
-    st.experimental_rerun()
+    st.rerun()
 
 # =========================
 # REGISTROS
@@ -273,7 +268,7 @@ elif opcion == "reflexion":
             st.markdown(f"**Observable:** {info_cat['observable']}")
 
         st.session_state["limpiar_reflexion"] = True
-        st.experimental_rerun()
+        st.rerun()
 
 # ==== HISTORIAL ====
 elif opcion == "historial":
