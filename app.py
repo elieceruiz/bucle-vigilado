@@ -62,6 +62,27 @@ for ev in [EVENTO_A, EVENTO_B]:
             st.session_state[ev] = ultimo["fecha_hora"].astimezone(colombia)
 
 # =========================
+# FUNCIONES AUXILIARES
+# =========================
+
+def formatear_delta(rd, incluir_segundos=False):
+    partes = []
+
+    if rd.months:
+        partes.append(f"{rd.months}m")
+    if rd.days:
+        partes.append(f"{rd.days}d")
+    if rd.hours:
+        partes.append(f"{rd.hours}h")
+    if rd.minutes:
+        partes.append(f"{rd.minutes}m")
+
+    if incluir_segundos and rd.seconds:
+        partes.append(f"{rd.seconds}s")
+
+    return " ".join(partes) if partes else "0m"
+
+# =========================
 # FUNCIONES
 # =========================
 
@@ -114,7 +135,7 @@ def obtener_registros(nombre):
         diff = ""
         if anterior:
             d = relativedelta(fecha, anterior)
-            diff = f"{d.days}d {d.hours}h {d.minutes}m"
+            diff = formatear_delta(d)
 
         filas.append({
             "Día": dias_semana_3letras[fecha.weekday()],
@@ -125,7 +146,6 @@ def obtener_registros(nombre):
 
     df = pd.DataFrame(filas)
 
-    # 🔑 numeración descendente USANDO EL ÍNDICE (no columnas)
     df.index = range(len(df), 0, -1)
     df.index.name = "#"
 
@@ -184,7 +204,7 @@ def mostrar_racha(nombre_evento, emoji):
     st.metric(
         "Duración",
         f"{int(delta.total_seconds() // 60)} min",
-        f"{d.days}d {d.hours}h {d.minutes}m {d.seconds}s"
+        formatear_delta(d, incluir_segundos=True)
     )
 
 # =========================
