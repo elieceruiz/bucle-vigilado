@@ -83,7 +83,7 @@ def formatear_delta(rd, incluir_segundos=False):
     return " ".join(partes) if partes else "0m"
 
 # =========================
-# FUNCIONES PRINCIPALES
+# FUNCIONES
 # =========================
 
 def clasificar_reflexion_openai(texto):
@@ -113,23 +113,23 @@ def registrar_evento(nombre, fecha):
         "fecha_hora": fecha
     })
     st.session_state[nombre] = fecha
-    # ⚠️ No usamos st.rerun para evitar salto
+    st.rerun()
 
 # =========================
-# REGISTROS
+# REGISTROS (SIN COLUMNAS EXTRA)
 # =========================
 
 def obtener_registros(nombre):
-    eventos_list = list(
+    eventos = list(
         coleccion_eventos.find({"evento": nombre}).sort("fecha_hora", -1)
     )
 
     filas = []
-    for i, e in enumerate(eventos_list):
+    for i, e in enumerate(eventos):
         fecha = e["fecha_hora"].astimezone(colombia)
         anterior = (
-            eventos_list[i + 1]["fecha_hora"].astimezone(colombia)
-            if i + 1 < len(eventos_list) else None
+            eventos[i + 1]["fecha_hora"].astimezone(colombia)
+            if i + 1 < len(eventos) else None
         )
 
         diff = ""
@@ -147,6 +147,7 @@ def obtener_registros(nombre):
     df = pd.DataFrame(filas)
     df.index = range(len(df), 0, -1)
     df.index.name = "#"
+
     return df
 
 def obtener_reflexiones():
@@ -162,13 +163,15 @@ def obtener_reflexiones():
             "Hora": fecha.strftime("%H:%M"),
             "Reflexión": r.get("reflexion", ""),
             "Categoría": r.get("categoria_categorial", ""),
-            "Emociones": " ".join([e["emoji"] for e in r.get("emociones", [])])
+            "Emociones": " ".join(
+                [e["emoji"] for e in r.get("emociones", [])]
+            )
         })
 
     return pd.DataFrame(filas)
 
 # =========================
-# CRONÓMETRO CONTROLADO SIN SALTO
+# CRONÓMETRO CONTROLADO
 # =========================
 
 def mostrar_racha(nombre_evento, emoji):
@@ -178,19 +181,20 @@ def mostrar_racha(nombre_evento, emoji):
 
     st.markdown("### ⏱️ Racha")
 
-    # ✅ Checkbox evita rerun y salto
-    st.session_state[estado] = st.checkbox(
+    # Usamos st.checkbox invisible para evitar salto al presionar botón
+    cambiar_estado = st.checkbox(
         "Cronómetro activo",
         value=st.session_state[estado],
         key=f"chk_{nombre_evento}"
     )
+    st.session_state[estado] = cambiar_estado
+
+    if st.session_state[estado]:
+        st_autorefresh(interval=1000, key=f"refresh_{nombre_evento}")
 
     if nombre_evento not in st.session_state:
         st.metric("Duración", "0 min")
         return
-
-    if st.session_state[estado]:
-        st_autorefresh(interval=1000, key=f"refresh_{nombre_evento}")
 
     inicio = st.session_state[nombre_evento]
     ahora = datetime.now(colombia)
@@ -232,6 +236,7 @@ elif opcion == "reflexion":
         if st.button("📝 Guardar reflexión"):
             categoria = guardar_reflexion(datetime.now(colombia), emociones, texto)
             st.success(f"Reflexión guardada ({categoria})")
+            st.rerun()
 
 elif opcion == "historial":
     tabs = st.tabs(["🧠 Reflexiones", "✊🏽 Evento A", "💸 Evento B"])
@@ -255,4 +260,4 @@ elif opcion == "historial":
             obtener_registros(EVENTO_B),
             use_container_width=True,
             hide_index=False
-        )ñ
+        )
