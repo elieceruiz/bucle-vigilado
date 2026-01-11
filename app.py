@@ -54,7 +54,10 @@ eventos = {
 
 for ev in [EVENTO_A, EVENTO_B]:
     if ev not in st.session_state:
-        ultimo = coleccion_eventos.find_one({"evento": ev}, sort=[("fecha_hora", -1)])
+        ultimo = coleccion_eventos.find_one(
+            {"evento": ev},
+            sort=[("fecha_hora", -1)]
+        )
         if ultimo:
             st.session_state[ev] = ultimo["fecha_hora"].astimezone(colombia)
 
@@ -91,6 +94,10 @@ def registrar_evento(nombre, fecha):
     st.session_state[nombre] = fecha
     st.rerun()
 
+# =========================
+# REGISTROS (SIN COLUMNAS EXTRA)
+# =========================
+
 def obtener_registros(nombre):
     eventos = list(
         coleccion_eventos.find({"evento": nombre}).sort("fecha_hora", -1)
@@ -99,7 +106,10 @@ def obtener_registros(nombre):
     filas = []
     for i, e in enumerate(eventos):
         fecha = e["fecha_hora"].astimezone(colombia)
-        anterior = eventos[i+1]["fecha_hora"].astimezone(colombia) if i+1 < len(eventos) else None
+        anterior = (
+            eventos[i + 1]["fecha_hora"].astimezone(colombia)
+            if i + 1 < len(eventos) else None
+        )
 
         diff = ""
         if anterior:
@@ -113,9 +123,14 @@ def obtener_registros(nombre):
             "Sin recaída": diff
         })
 
-    return pd.DataFrame(filas)
+    df = pd.DataFrame(filas)
 
-# 🔧 FUNCIÓN QUE FALTABA (CAUSA DEL ERROR)
+    # 🔑 numeración descendente USANDO EL ÍNDICE (no columnas)
+    df.index = range(len(df), 0, -1)
+    df.index.name = "#"
+
+    return df
+
 def obtener_reflexiones():
     registros = list(
         coleccion_reflexiones.find().sort("fecha_hora", -1)
@@ -137,7 +152,7 @@ def obtener_reflexiones():
     return pd.DataFrame(filas)
 
 # =========================
-# 🔧 CRONÓMETRO CONTROLADO
+# CRONÓMETRO CONTROLADO
 # =========================
 
 def mostrar_racha(nombre_evento, emoji):
@@ -147,14 +162,12 @@ def mostrar_racha(nombre_evento, emoji):
 
     st.markdown("### ⏱️ Racha")
 
-    col1, col2 = st.columns(2)
-    with col1:
-        if st.button(
-            "▶️ Activar cronómetro" if not st.session_state[estado] else "⏸️ Pausar cronómetro",
-            key=f"btn_{nombre_evento}"
-        ):
-            st.session_state[estado] = not st.session_state[estado]
-            st.rerun()
+    if st.button(
+        "▶️ Activar cronómetro" if not st.session_state[estado] else "⏸️ Pausar cronómetro",
+        key=f"btn_{nombre_evento}"
+    ):
+        st.session_state[estado] = not st.session_state[estado]
+        st.rerun()
 
     if nombre_evento not in st.session_state:
         st.metric("Duración", "0 min")
@@ -216,7 +229,15 @@ elif opcion == "historial":
                 st.caption(f"Categoría: {r['Categoría']}")
 
     with tabs[1]:
-        st.dataframe(obtener_registros(EVENTO_A), use_container_width=True)
+        st.dataframe(
+            obtener_registros(EVENTO_A),
+            use_container_width=True,
+            hide_index=False
+        )
 
     with tabs[2]:
-        st.dataframe(obtener_registros(EVENTO_B), use_container_width=True)
+        st.dataframe(
+            obtener_registros(EVENTO_B),
+            use_container_width=True,
+            hide_index=False
+        )
