@@ -95,7 +95,7 @@ def registrar_evento(nombre, fecha):
     st.rerun()
 
 # =========================
-# REGISTROS (SIN COLUMNAS EXTRA)
+# REGISTROS (CON MESES)
 # =========================
 
 def obtener_registros(nombre):
@@ -111,10 +111,11 @@ def obtener_registros(nombre):
             if i + 1 < len(eventos) else None
         )
 
-        diff = ""
         if anterior:
             d = relativedelta(fecha, anterior)
-            diff = f"{d.days}d {d.hours}h {d.minutes}m"
+            diff = f"{d.months}m {d.days}d {d.hours}h {d.minutes}m"
+        else:
+            diff = "0m 0d 0h 0m"
 
         filas.append({
             "Día": dias_semana_3letras[fecha.weekday()],
@@ -125,7 +126,7 @@ def obtener_registros(nombre):
 
     df = pd.DataFrame(filas)
 
-    # 🔑 numeración descendente USANDO EL ÍNDICE (no columnas)
+    # numeración descendente (más reciente = número más alto)
     df.index = range(len(df), 0, -1)
     df.index.name = "#"
 
@@ -184,7 +185,7 @@ def mostrar_racha(nombre_evento, emoji):
     st.metric(
         "Duración",
         f"{int(delta.total_seconds() // 60)} min",
-        f"{d.days}d {d.hours}h {d.minutes}m {d.seconds}s"
+        f"{d.months}m {d.days}d {d.hours}h {d.minutes}m {d.seconds}s"
     )
 
 # =========================
