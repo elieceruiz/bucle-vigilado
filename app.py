@@ -183,7 +183,7 @@ def mostrar_racha(nombre_evento, emoji):
     st.markdown("### ⏱️ Racha")
 
     if st.button(
-        "▶️ Activar cronómetro" if not st.session_state[estado] else "⏸️ Pausar cronómetro",
+        "🟢 Activar cronómetro" if not st.session_state[estado] else "🟡 Pausar cronómetro",
         key=f"btn_{nombre_evento}"
     ):
         st.session_state[estado] = not st.session_state[estado]
