@@ -54,7 +54,9 @@ eventos = {
 
 for ev in [EVENTO_A, EVENTO_B]:
     if ev not in st.session_state:
-        ultimo = coleccion_eventos.find_one({"evento": ev}, sort=[("fecha_hora", -1)])
+        ultimo = coleccion_eventos.find_one(
+            {"evento": ev}, sort=[("fecha_hora", -1)]
+        )
         if ultimo:
             st.session_state[ev] = ultimo["fecha_hora"].astimezone(colombia)
 
@@ -96,10 +98,15 @@ def obtener_registros(nombre):
         coleccion_eventos.find({"evento": nombre}).sort("fecha_hora", -1)
     )
 
+    total = len(eventos)
     filas = []
+
     for i, e in enumerate(eventos):
         fecha = e["fecha_hora"].astimezone(colombia)
-        anterior = eventos[i+1]["fecha_hora"].astimezone(colombia) if i+1 < len(eventos) else None
+        anterior = (
+            eventos[i + 1]["fecha_hora"].astimezone(colombia)
+            if i + 1 < total else None
+        )
 
         diff = ""
         if anterior:
@@ -107,6 +114,7 @@ def obtener_registros(nombre):
             diff = f"{d.days}d {d.hours}h {d.minutes}m"
 
         filas.append({
+            "#": total - i,   # numeración descendente correcta
             "Día": dias_semana_3letras[fecha.weekday()],
             "Fecha": fecha.strftime("%d-%m-%y"),
             "Hora": fecha.strftime("%H:%M"),
@@ -115,7 +123,6 @@ def obtener_registros(nombre):
 
     return pd.DataFrame(filas)
 
-# 🔧 FUNCIÓN QUE FALTABA (CAUSA DEL ERROR)
 def obtener_reflexiones():
     registros = list(
         coleccion_reflexiones.find().sort("fecha_hora", -1)
@@ -137,7 +144,7 @@ def obtener_reflexiones():
     return pd.DataFrame(filas)
 
 # =========================
-# 🔧 CRONÓMETRO CONTROLADO
+# CRONÓMETRO CONTROLADO
 # =========================
 
 def mostrar_racha(nombre_evento, emoji):
