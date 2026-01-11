@@ -95,7 +95,7 @@ def registrar_evento(nombre, fecha):
     st.rerun()
 
 # =========================
-# REGISTROS (SIN COLUMNAS EXTRA)
+# REGISTROS (CORREGIDO MES)
 # =========================
 
 def obtener_registros(nombre):
@@ -113,8 +113,12 @@ def obtener_registros(nombre):
 
         diff = ""
         if anterior:
-            d = relativedelta(fecha, anterior)
-            diff = f"{d.days}d {d.hours}h {d.minutes}m"
+            # 🔧 CORTE POR MES / AÑO
+            if fecha.year == anterior.year and fecha.month == anterior.month:
+                d = relativedelta(fecha, anterior)
+                diff = f"{d.days}d {d.hours}h {d.minutes}m"
+            else:
+                diff = "— cambio de mes —"
 
         filas.append({
             "Día": dias_semana_3letras[fecha.weekday()],
@@ -125,7 +129,7 @@ def obtener_registros(nombre):
 
     df = pd.DataFrame(filas)
 
-    # 🔑 numeración descendente USANDO EL ÍNDICE (no columnas)
+    # numeración descendente correcta
     df.index = range(len(df), 0, -1)
     df.index.name = "#"
 
