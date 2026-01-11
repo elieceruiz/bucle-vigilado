@@ -95,7 +95,7 @@ def registrar_evento(nombre, fecha):
     st.rerun()
 
 # =========================
-# REGISTROS (CON MESES)
+# REGISTROS (MESES + ÍNDICE)
 # =========================
 
 def obtener_registros(nombre):
@@ -153,7 +153,7 @@ def obtener_reflexiones():
     return pd.DataFrame(filas)
 
 # =========================
-# CRONÓMETRO CONTROLADO
+# CRONÓMETRO CONTROLADO (FIX PAUSA)
 # =========================
 
 def mostrar_racha(nombre_evento, emoji):
@@ -167,8 +167,8 @@ def mostrar_racha(nombre_evento, emoji):
         "▶️ Activar cronómetro" if not st.session_state[estado] else "⏸️ Pausar cronómetro",
         key=f"btn_{nombre_evento}"
     ):
+        # ⛔ NO rerun acá (Streamlit ya lo hace)
         st.session_state[estado] = not st.session_state[estado]
-        st.rerun()
 
     if nombre_evento not in st.session_state:
         st.metric("Duración", "0 min")
