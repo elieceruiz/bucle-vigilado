@@ -10,9 +10,7 @@ from openai import OpenAI
 # =========================
 # CONFIGURACIÓN GENERAL
 # =========================
-
 st.set_page_config(page_title="Reinicia", layout="centered")
-
 colombia = pytz.timezone("America/Bogota")
 
 dias_semana_es = {
@@ -20,14 +18,11 @@ dias_semana_es = {
     "Thursday": "Jueves", "Friday": "Viernes", "Saturday": "Sábado", "Sunday": "Domingo"
 }
 
-dias_semana_3letras = {
-    0: "Lun", 1: "Mar", 2: "Mié", 3: "Jue", 4: "Vie", 5: "Sáb", 6: "Dom"
-}
+dias_semana_3letras = {0: "Lun", 1: "Mar", 2: "Mié", 3: "Jue", 4: "Vie", 5: "Sáb", 6: "Dom"}
 
 # =========================
 # BASE DE DATOS
 # =========================
-
 client = MongoClient(st.secrets["mongo_uri"])
 db = client["registro_bucle"]
 coleccion_eventos = db["eventos"]
@@ -36,13 +31,11 @@ coleccion_reflexiones = db["reflexiones"]
 # =========================
 # OPENAI
 # =========================
-
 openai_client = OpenAI(api_key=st.secrets["openai_api_key"])
 
 # =========================
 # EVENTOS
 # =========================
-
 EVENTO_A = "La Iniciativa Aquella"
 EVENTO_B = "La Iniciativa de Pago"
 
@@ -56,7 +49,6 @@ eventos = {
 # =========================
 # SISTEMA CATEGORIAL
 # =========================
-
 sistema_categorial = {
     "1.1": {"categoria": "Dinámicas cotidianas", "subcategoria": "Organización del tiempo",
             "descriptor": "Manejo de rutinas y distribución del día",
@@ -99,80 +91,72 @@ sistema_categorial = {
 # =========================
 # CARGA ESTADO INICIAL
 # =========================
-
 for ev in [EVENTO_A, EVENTO_B]:
     if ev not in st.session_state:
         ultimo = coleccion_eventos.find_one({"evento": ev}, sort=[("fecha_hora", -1)])
         if ultimo:
             st.session_state[ev] = ultimo["fecha_hora"].astimezone(colombia)
 
+# Inicializar variables de sesión para reflexiones
+if "texto_reflexion" not in st.session_state:
+    st.session_state["texto_reflexion"] = ""
+if "emociones_reflexion" not in st.session_state:
+    st.session_state["emociones_reflexion"] = []
+
 # =========================
 # FUNCIONES AUXILIARES
 # =========================
-
 def formatear_delta(rd, incluir_segundos=False):
     partes = []
-    if rd.years: partes.append(f"{rd.years}a")
-    if rd.months: partes.append(f"{rd.months}m")
-    if rd.days: partes.append(f"{rd.days}d")
-    if rd.hours: partes.append(f"{rd.hours}h")
-    if rd.minutes: partes.append(f"{rd.minutes}m")
-    if incluir_segundos and rd.seconds: partes.append(f"{rd.seconds}s")
+    if rd.years:
+        partes.append(f"{rd.years}a")
+    if rd.months:
+        partes.append(f"{rd.months}m")
+    if rd.days:
+        partes.append(f"{rd.days}d")
+    if rd.hours:
+        partes.append(f"{rd.hours}h")
+    if rd.minutes:
+        partes.append(f"{rd.minutes}m")
+    if incluir_segundos and rd.seconds:
+        partes.append(f"{rd.seconds}s")
     return " ".join(partes) if partes else "0m"
 
 # =========================
 # FUNCIONES PRINCIPALES
 # =========================
-
-def clasificar_reflexion_openai(texto_reflexion: str) -> str:
-    prompt = f"""Sistema categorial:
-1.1 Organización del tiempo
-1.2 Relaciones sociales
-1.3 Contextos de intimidad
-1.4 Factores emocionales
-2.1 Motivaciones
-2.2 Prácticas asociadas
-2.3 Representaciones
-2.4 Efectos en la trayectoria íntima
-3.1 Prácticas de autocuidado
-3.2 Placer y exploración del cuerpo
-3.3 Relación con la intimidad
-3.4 Representaciones culturales
-
-Por favor indica el código de la categoría/subcategoría que mejor describe esta reflexión:
-
-Reflexión: \"\"\"{texto_reflexion}\"\"\"
-Respuesta solo con el código, ejemplo: 1.4
-"""
+def clasificar_reflexion_openai(texto):
+    prompt = f"""Clasificá la siguiente reflexión usando un código del sistema categorial.
+Reflexión: \"\"\"{texto}\"\"\""""
     r = openai_client.chat.completions.create(
         model="gpt-4o-mini",
         messages=[{"role": "user", "content": prompt}],
         temperature=0,
-        max_tokens=5
+        max_tokens=6
     )
     return r.choices[0].message.content.strip()
 
-def guardar_reflexion(fecha_hora, emociones, texto_reflexion):
-    categoria_auto = clasificar_reflexion_openai(texto_reflexion)
+def guardar_reflexion(fecha, emociones, texto):
+    categoria = clasificar_reflexion_openai(texto)
     coleccion_reflexiones.insert_one({
-        "fecha_hora": fecha_hora,
+        "fecha_hora": fecha,
         "emociones": [{"emoji": e.split()[0], "nombre": " ".join(e.split()[1:])} for e in emociones],
-        "reflexion": texto_reflexion.strip(),
-        "categoria_categorial": categoria_auto
+        "reflexion": texto.strip(),
+        "categoria_categorial": categoria
     })
-    return categoria_auto
+    return categoria
 
 def registrar_evento(nombre, fecha):
     coleccion_eventos.insert_one({"evento": nombre, "fecha_hora": fecha})
     st.session_state[nombre] = fecha
-    st.rerun()
+    st.experimental_rerun()
 
-def obtener_registros(nombre_evento):
-    eventos_lst = list(coleccion_eventos.find({"evento": nombre_evento}).sort("fecha_hora", -1))
+def obtener_registros(nombre):
+    eventos_list = list(coleccion_eventos.find({"evento": nombre}).sort("fecha_hora", -1))
     filas = []
-    for i, e in enumerate(eventos_lst):
+    for i, e in enumerate(eventos_list):
         fecha = e["fecha_hora"].astimezone(colombia)
-        anterior = eventos_lst[i + 1]["fecha_hora"].astimezone(colombia) if i + 1 < len(eventos_lst) else None
+        anterior = eventos_list[i + 1]["fecha_hora"].astimezone(colombia) if i + 1 < len(eventos_list) else None
         diff = formatear_delta(relativedelta(fecha, anterior)) if anterior else ""
         filas.append({
             "Día": dias_semana_3letras[fecha.weekday()],
@@ -190,8 +174,7 @@ def obtener_reflexiones():
     filas = []
     for r in registros:
         fecha = r["fecha_hora"].astimezone(colombia)
-        codigo = r.get("categoria_categorial", "")
-        info_cat = sistema_categorial.get(codigo, {
+        cat_info = sistema_categorial.get(r.get("categoria_categorial", ""), {
             "categoria": "Sin categoría",
             "subcategoria": "",
             "descriptor": "",
@@ -200,137 +183,105 @@ def obtener_reflexiones():
         filas.append({
             "Fecha": fecha.strftime("%d-%m-%y"),
             "Hora": fecha.strftime("%H:%M"),
-            "Emojis": " ".join([e["emoji"] for e in r.get("emociones", [])]),
-            "Emociones": ", ".join([e["nombre"] for e in r.get("emociones", [])]),
-            "Categoría": info_cat["categoria"],
-            "Subcategoría": info_cat["subcategoria"],
-            "Descriptor": info_cat.get("descriptor", ""),
-            "Observable": info_cat.get("observable", ""),
-            "Reflexión": r.get("reflexion", "")
+            "Reflexión": r.get("reflexion", ""),
+            "Categoría": cat_info["categoria"],
+            "Subcategoría": cat_info["subcategoria"],
+            "Descriptor": cat_info["descriptor"],
+            "Observable": cat_info["observable"],
+            "Emociones": " ".join([e["emoji"] for e in r.get("emociones", [])])
         })
     return pd.DataFrame(filas)
 
-# =========================
-# CRONÓMETRO / RACHA
-# =========================
-
-def mostrar_racha(nombre_evento, emoji):
-    clave_estado = f"cronometro_activo_{nombre_evento}"
-    if clave_estado not in st.session_state:
-        st.session_state[clave_estado] = False
+def mostrar_racha(nombre_evento):
+    estado = f"cronometro_activo_{nombre_evento}"
+    if estado not in st.session_state:
+        st.session_state[estado] = False
 
     st.markdown("### ⏱️ Racha")
-    mostrar = st.checkbox("Ver/ocultar racha", key=f"check_{nombre_evento}")
-    st.session_state[clave_estado] = mostrar
+    cambiar_estado = st.checkbox(
+        "Ver/ocultar racha",
+        value=st.session_state[estado],
+        key=f"chk_{nombre_evento}"
+    )
+    st.session_state[estado] = cambiar_estado
 
-    if mostrar:
-        st_autorefresh(interval=1000, key=f"autorefresh_{nombre_evento}")
+    if st.session_state[estado]:
+        st_autorefresh(interval=1000, key=f"refresh_{nombre_evento}")
 
     if nombre_evento not in st.session_state:
         st.metric("Duración", "0 min")
-        st.caption("0a 0m 0d 0h 0m 0s")
         return
 
     inicio = st.session_state[nombre_evento]
     ahora = datetime.now(colombia)
     delta = ahora - inicio
-    detalle = relativedelta(ahora, inicio)
-    minutos = int(delta.total_seconds() // 60)
-    tiempo_str = formatear_delta(detalle, incluir_segundos=True)
+    d = relativedelta(ahora, inicio)
 
-    st.metric("Duración", f"{minutos:,} min", tiempo_str)
+    st.metric(
+        "Duración",
+        f"{int(delta.total_seconds() // 60)} min",
+        formatear_delta(d, incluir_segundos=True)
+    )
 
 # =========================
 # INTERFAZ PRINCIPAL
 # =========================
-
 st.title("Reinicia")
-
 seleccion = st.selectbox("Seleccioná qué registrar o consultar:", list(eventos.keys()))
 opcion = eventos[seleccion]
 
-# -----------------------
-# EVENTOS PRINCIPALES
-# -----------------------
 if opcion in [EVENTO_A, EVENTO_B]:
     if st.button("☠️ Registrar evento"):
         registrar_evento(opcion, datetime.now(colombia))
-    mostrar_racha(opcion, seleccion.split()[0])
+    mostrar_racha(opcion)
 
-# -----------------------
-# REFLEXIONES
-# -----------------------
 elif opcion == "reflexion":
-    # Inicializamos estados
-    if "reset_reflexion" not in st.session_state:
-        st.session_state["reset_reflexion"] = False
+    st.session_state["texto_reflexion"] = st.text_area("¿Querés dejar algo escrito?", st.session_state["texto_reflexion"])
+    st.session_state["emociones_reflexion"] = st.multiselect(
+        "¿Cómo te sentías?",
+        ["😰 Ansioso", "😡 Irritado / Rabia contenida", "💪 Firme / Decidido", "😌 Aliviado / Tranquilo", "😓 Culpable", "🥱 Apático / Cansado", "😔 Triste"],
+        default=st.session_state["emociones_reflexion"]
+    )
+
+    if st.button("📝 Guardar reflexión") and (st.session_state["texto_reflexion"].strip() or st.session_state["emociones_reflexion"]):
+        fecha_actual = datetime.now(colombia)
+        categoria = guardar_reflexion(fecha_actual, st.session_state["emociones_reflexion"], st.session_state["texto_reflexion"])
+
+        cat_info = sistema_categorial.get(categoria, {
+            "categoria": "Sin categoría",
+            "subcategoria": "",
+            "descriptor": "",
+            "observable": ""
+        })
+
+        st.markdown("### ✅ Reflexión guardada")
+        st.markdown(f"**Reflexión:** {st.session_state['texto_reflexion'].strip()}")
+        st.markdown(f"**Categoría:** {cat_info['categoria']}")
+        st.markdown(f"**Subcategoría:** {cat_info['subcategoria']}")
+        if cat_info.get("descriptor"):
+            st.markdown(f"**Descriptor:** {cat_info['descriptor']}")
+        if cat_info.get("observable"):
+            st.markdown(f"**Observable:** {cat_info['observable']}")
+
+        # Limpiar sesión antes de rerun
         st.session_state["texto_reflexion"] = ""
         st.session_state["emociones_reflexion"] = []
+        st.experimental_rerun()
 
-    # Última reflexión
-    ultima = coleccion_reflexiones.find_one({}, sort=[("fecha_hora", -1)])
-    if ultima:
-        fecha = ultima["fecha_hora"].astimezone(colombia)
-        st.caption(f"📌 Última registrada: {fecha.strftime('%d-%m-%y %H:%M:%S')}")
-
-    # Inputs
-    emociones_opciones = [
-        "😰 Ansioso", "😡 Irritado / Rabia contenida", "💪 Firme / Decidido",
-        "😌 Aliviado / Tranquilo", "😓 Culpable", "🥱 Apático / Cansado", "😔 Triste"
-    ]
-    emociones = st.multiselect(
-        "¿Cómo te sentías?",
-        emociones_opciones,
-        key="emociones_reflexion",
-        default=st.session_state.get("emociones_reflexion", [])
-    )
-    texto = st.text_area(
-        "¿Querés dejar algo escrito?",
-        height=150,
-        key="texto_reflexion",
-        value=st.session_state.get("texto_reflexion", "")
-    )
-
-    if texto.strip() or emociones:
-        if st.button("📝 Guardar reflexión"):
-            fecha_actual = datetime.now(colombia)
-            categoria_asignada = guardar_reflexion(fecha_actual, emociones, texto)
-            info_cat = sistema_categorial.get(categoria_asignada, {
-                "categoria": "Sin categoría", "subcategoria": "", "descriptor": "", "observable": ""
-            })
-
-            st.markdown("### ✅ Reflexión guardada")
-            st.markdown(f"**Reflexión:** {texto.strip()}")
-            st.markdown(f"**Categoría:** {info_cat['categoria']}")
-            st.markdown(f"**Subcategoría:** {info_cat['subcategoria']}")
-            if info_cat.get("descriptor"):
-                st.markdown(f"**Descriptor:** {info_cat['descriptor']}")
-            if info_cat.get("observable"):
-                st.markdown(f"**Observable:** {info_cat['observable']}")
-
-            st.session_state["texto_reflexion"] = ""
-            st.session_state["emociones_reflexion"] = []
-            st.session_state["reset_reflexion"] = True
-
-# -----------------------
-# HISTORIAL
-# -----------------------
 elif opcion == "historial":
     tabs = st.tabs(["🧠 Reflexiones", "✊🏽 Evento A", "💸 Evento B"])
 
     with tabs[0]:
-        df = obtener_reflexiones()
-        for _, r in df.iterrows():
-            with st.expander(f"{r['Fecha']} {r['Emojis']} {r['Hora']}"):
-                st.write(r["Reflexión"])
-                st.markdown("---")
-                st.write(f"**Estados de ánimo:** {r['Emociones']}")
-                st.markdown(f"**Categoría:** {r['Categoría']}")
-                st.markdown(f"**Subcategoría:** {r['Subcategoría']}")
-                if r['Descriptor']:
-                    st.markdown(f"**Descriptor:** {r['Descriptor']}")
-                if r['Observable']:
-                    st.markdown(f"**Observable:** {r['Observable']}")
+        df_r = obtener_reflexiones()
+        for _, row in df_r.iterrows():
+            with st.expander(f"{row['Fecha']} {row['Hora']} {row['Emociones']}"):
+                st.write(row['Reflexión'])
+                st.markdown(f"**Categoría:** {row['Categoría']}")
+                st.markdown(f"**Subcategoría:** {row['Subcategoría']}")
+                if row['Descriptor']:
+                    st.markdown(f"**Descriptor:** {row['Descriptor']}")
+                if row['Observable']:
+                    st.markdown(f"**Observable:** {row['Observable']}")
 
     with tabs[1]:
         st.dataframe(obtener_registros(EVENTO_A), use_container_width=True, hide_index=False)
