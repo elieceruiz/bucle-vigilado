@@ -83,7 +83,7 @@ def formatear_delta(rd, incluir_segundos=False):
     return " ".join(partes) if partes else "0m"
 
 # =========================
-# FUNCIONES
+# FUNCIONES PRINCIPALES
 # =========================
 
 def clasificar_reflexion_openai(texto):
@@ -113,23 +113,23 @@ def registrar_evento(nombre, fecha):
         "fecha_hora": fecha
     })
     st.session_state[nombre] = fecha
-    st.rerun()
+    # ⚠️ No usamos st.rerun para evitar salto
 
 # =========================
-# REGISTROS (SIN COLUMNAS EXTRA)
+# REGISTROS
 # =========================
 
 def obtener_registros(nombre):
-    eventos = list(
+    eventos_list = list(
         coleccion_eventos.find({"evento": nombre}).sort("fecha_hora", -1)
     )
 
     filas = []
-    for i, e in enumerate(eventos):
+    for i, e in enumerate(eventos_list):
         fecha = e["fecha_hora"].astimezone(colombia)
         anterior = (
-            eventos[i + 1]["fecha_hora"].astimezone(colombia)
-            if i + 1 < len(eventos) else None
+            eventos_list[i + 1]["fecha_hora"].astimezone(colombia)
+            if i + 1 < len(eventos_list) else None
         )
 
         diff = ""
@@ -147,7 +147,6 @@ def obtener_registros(nombre):
     df = pd.DataFrame(filas)
     df.index = range(len(df), 0, -1)
     df.index.name = "#"
-
     return df
 
 def obtener_reflexiones():
@@ -163,15 +162,13 @@ def obtener_reflexiones():
             "Hora": fecha.strftime("%H:%M"),
             "Reflexión": r.get("reflexion", ""),
             "Categoría": r.get("categoria_categorial", ""),
-            "Emociones": " ".join(
-                [e["emoji"] for e in r.get("emociones", [])]
-            )
+            "Emociones": " ".join([e["emoji"] for e in r.get("emociones", [])])
         })
 
     return pd.DataFrame(filas)
 
 # =========================
-# CRONÓMETRO CONTROLADO
+# CRONÓMETRO CONTROLADO SIN SALTO
 # =========================
 
 def mostrar_racha(nombre_evento, emoji):
@@ -181,12 +178,12 @@ def mostrar_racha(nombre_evento, emoji):
 
     st.markdown("### ⏱️ Racha")
 
-    if st.button(
-        "🟢 Activar cronómetro" if not st.session_state[estado] else "🟡 Pausar cronómetro",
-        key=f"btn_{nombre_evento}"
-    ):
-        st.session_state[estado] = not st.session_state[estado]
-        st.rerun()
+    # ✅ Checkbox evita rerun y salto
+    st.session_state[estado] = st.checkbox(
+        "Cronómetro activo",
+        value=st.session_state[estado],
+        key=f"chk_{nombre_evento}"
+    )
 
     if nombre_evento not in st.session_state:
         st.metric("Duración", "0 min")
@@ -200,10 +197,9 @@ def mostrar_racha(nombre_evento, emoji):
     delta = ahora - inicio
     d = relativedelta(ahora, inicio)
 
-    # ⚡ Cambio mínimo: usar round para que no salte hacia abajo
     st.metric(
         "Duración",
-        f"{int(round(delta.total_seconds() / 60))} min",
+        f"{int(delta.total_seconds() // 60)} min",
         formatear_delta(d, incluir_segundos=True)
     )
 
@@ -236,7 +232,6 @@ elif opcion == "reflexion":
         if st.button("📝 Guardar reflexión"):
             categoria = guardar_reflexion(datetime.now(colombia), emociones, texto)
             st.success(f"Reflexión guardada ({categoria})")
-            st.rerun()
 
 elif opcion == "historial":
     tabs = st.tabs(["🧠 Reflexiones", "✊🏽 Evento A", "💸 Evento B"])
@@ -260,4 +255,4 @@ elif opcion == "historial":
             obtener_registros(EVENTO_B),
             use_container_width=True,
             hide_index=False
-        )
+        )ñ
