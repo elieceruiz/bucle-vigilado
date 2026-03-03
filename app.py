@@ -316,6 +316,12 @@ elif opcion == "viaje_tiempo":
         else:
             st.session_state["input_nu"] = ""
 
+    # Limpieza diferida del input
+    if st.session_state.get("limpiar_input_nu", False):
+        st.session_state["input_nu"] = ""
+        st.session_state["limpiar_input_nu"] = False
+
+    
     st.text_input(
         "Monto actual en NU (COP)",
         key="input_nu",
@@ -362,9 +368,9 @@ elif opcion == "viaje_tiempo":
                 "fecha_futura": fecha_futura.strftime("%d-%m-%y %H:%M")
             }
     
-            st.session_state["input_nu"] = ""
-    
+            st.session_state["limpiar_input_nu"] = True
             st.rerun()
+
 
 # ==== REFLEXIONES ====
 elif opcion == "reflexion":
