@@ -282,9 +282,7 @@ if opcion in [EVENTO_A, EVENTO_B]:
 
 # ==== VIAJE EN EL TIEMPO ====
 elif opcion == "viaje_tiempo":
-
-    st.subheader("🧭 Viaje en el tiempo")
-    
+ 
     # Mostrar confirmación si existe
     if "mensaje_guardado" in st.session_state:
         msg = st.session_state["mensaje_guardado"]
@@ -406,7 +404,7 @@ elif opcion == "reflexion":
 
 # ==== HISTORIAL ====
 elif opcion == "historial":
-    tabs = st.tabs(["🧠 Reflexiones", "✊🏽 Evento A", "💸 Evento B", "🧭"])
+    tabs = st.tabs(["🧠", "✊🏽", "💸", "🧭"])
 
     with tabs[0]:
         df = obtener_reflexiones()
