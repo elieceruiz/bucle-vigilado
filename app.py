@@ -253,16 +253,18 @@ def obtener_minutos_evento_b():
 def obtener_historial_capital_b():
     registros = list(coleccion_capital_b.find().sort("fecha_registro", -1))
     filas = []
+
     for r in registros:
+        fecha_reg = r["fecha_registro"].astimezone(colombia)
+        fecha_fut = r["fecha_futura"].astimezone(colombia)
+
         filas.append({
-            fecha_reg = r["fecha_registro"].astimezone(colombia)
-            fecha_fut = r["fecha_futura"].astimezone(colombia)
             "Actual": fecha_reg.strftime("%d-%m-%y %H:%M"),
             "Adelantado": fecha_fut.strftime("%d-%m-%y %H:%M"),
             "COP": f"{r['monto']:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
         })
-    return pd.DataFrame(filas)
 
+    return pd.DataFrame(filas)
 
 # =========================
 # INTERFAZ PRINCIPAL
