@@ -284,36 +284,45 @@ if opcion in [EVENTO_A, EVENTO_B]:
 elif opcion == "viaje_tiempo":
 
     st.subheader("🧭 Viaje en el tiempo")
+
     # =========================
-    # INPUT TIPO NU (estable)
+    # INPUT TIPO NU (con on_change)
     # =========================
+    def formatear_input_nu():
+        raw = st.session_state.get("input_nu", "")
+        limpio = "".join(filter(str.isdigit, raw))
 
-    if "input_nu_raw" not in st.session_state:
-        st.session_state["input_nu_raw"] = ""
+        if limpio:
+            numero = int(limpio)
+            monto_tmp = numero / 100
+            formateado = (
+                f"{monto_tmp:,.2f}"
+                .replace(",", "X")
+                .replace(".", ",")
+                .replace("X", ".")
+            )
+            st.session_state["input_nu"] = formateado
+        else:
+            st.session_state["input_nu"] = ""
 
-    raw = st.text_input("Monto actual en NU (COP)", key="input_nu_raw")
+    st.text_input(
+        "Monto actual en NU (COP)",
+        key="input_nu",
+        on_change=formatear_input_nu
+    )
 
-    limpio = "".join(filter(str.isdigit, raw))
+    raw_final = st.session_state.get("input_nu", "")
+    limpio_final = "".join(filter(str.isdigit, raw_final))
 
-    if limpio:
-        numero = int(limpio)
-        monto = numero / 100
-        monto_formateado = (
-            f"{monto:,.2f}"
-            .replace(",", "X")
-            .replace(".", ",")
-            .replace("X", ".")
-        )
+    if limpio_final:
+        monto = int(limpio_final) / 100
+        monto_formateado = raw_final
     else:
         monto = 0.0
         monto_formateado = "0,00"
 
-    # Mostramos el valor formateado justo debajo
-    st.markdown(f"**Interpretado como:** {monto_formateado} COP")
-
     
     if monto > 0:
-
         minutos_actuales = obtener_minutos_evento_b()
         diferencia = int(monto - minutos_actuales)
         ahora = datetime.now(colombia)
