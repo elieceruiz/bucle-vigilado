@@ -337,14 +337,24 @@ elif opcion == "viaje_tiempo":
             fecha_futura = ahora
             st.info("Sin adelanto aún")
 
-        if st.button("Guardar estado"):
-            coleccion_capital_b.insert_one({
-                "fecha_registro": ahora,
-                "fecha_futura": fecha_futura,
-                "monto": monto
-            })
-            st.success("Registro guardado")
-
+            if st.button("Guardar estado"):
+            
+                coleccion_capital_b.insert_one({
+                    "fecha_registro": ahora,
+                    "fecha_futura": fecha_futura,
+                    "monto": monto
+                })
+            
+                # Guardamos mensaje en estado
+                st.session_state["mensaje_guardado"] = {
+                    "capital": monto_formateado,
+                    "fecha_futura": fecha_futura.strftime("%d-%m-%y %H:%M")
+                }
+            
+                # Limpiamos el input
+                st.session_state["input_nu"] = ""
+            
+                st.rerun()
 
 # ==== REFLEXIONES ====
 elif opcion == "reflexion":
