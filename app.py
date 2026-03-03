@@ -332,40 +332,39 @@ elif opcion == "viaje_tiempo":
         monto = 0.0
         monto_formateado = "0,00"
 
-    
+
     if monto > 0:
         minutos_actuales = obtener_minutos_evento_b()
         diferencia = int(monto - minutos_actuales)
         ahora = datetime.now(colombia)
-
+    
         if diferencia > 0:
             fecha_futura = ahora + timedelta(minutes=diferencia)
-
+    
             st.success("Adelanto detectado")
             st.markdown(f"**Capital:** {monto_formateado} COP")
             st.markdown(f"**Fecha equivalente futura:** {fecha_futura.strftime('%d-%m-%y %H:%M')}")
         else:
             fecha_futura = ahora
             st.info("Sin adelanto aún")
-
-            if st.button("Guardar estado"):
-            
-                coleccion_capital_b.insert_one({
-                    "fecha_registro": ahora,
-                    "fecha_futura": fecha_futura,
-                    "monto": monto
-                })
-            
-                # Guardamos mensaje en estado
-                st.session_state["mensaje_guardado"] = {
-                    "capital": monto_formateado,
-                    "fecha_futura": fecha_futura.strftime("%d-%m-%y %H:%M")
-                }
-            
-                # Limpiamos el input
-                st.session_state["input_nu"] = ""
-            
-                st.rerun()
+    
+        # 👇 EL BOTÓN VA AQUÍ, FUERA DEL IF/ELSE
+        if st.button("Guardar estado"):
+    
+            coleccion_capital_b.insert_one({
+                "fecha_registro": ahora,
+                "fecha_futura": fecha_futura,
+                "monto": monto
+            })
+    
+            st.session_state["mensaje_guardado"] = {
+                "capital": monto_formateado,
+                "fecha_futura": fecha_futura.strftime("%d-%m-%y %H:%M")
+            }
+    
+            st.session_state["input_nu"] = ""
+    
+            st.rerun()
 
 # ==== REFLEXIONES ====
 elif opcion == "reflexion":
