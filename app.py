@@ -228,7 +228,7 @@ def mostrar_racha(nombre_evento, emoji):
     delta = ahora - inicio
     rd = relativedelta(ahora, inicio)
 
-    st.metric("Duración", f"{int(delta.total_seconds()//60)} min", formatear_delta(rd, incluir_segundos=True))
+    st.metric("Duración", f"{int(delta.total_seconds()//60)} min [COP]", formatear_delta(rd, incluir_segundos=True))
 
 # =========================
 # VIAJE EN EL TIEMPO - EVENTO B
