@@ -285,8 +285,33 @@ elif opcion == "viaje_tiempo":
 
     st.subheader("🧭 Viaje en el tiempo")
 
-    monto_raw = st.text_input("Monto actual en NU (COP)")
-    monto, monto_formateado = parsear_y_formatear_cop(monto_raw)
+# =========================
+# INPUT TIPO NU (formateo en vivo)
+# =========================
+    def input_monto_nu(label, key):
+    if key not in st.session_state:
+        st.session_state[key] = ""
+
+    valor = st.text_input(label, key=key)
+
+    limpio = "".join(filter(str.isdigit, valor))
+
+    if limpio:
+        numero = int(limpio)
+        formateado = f"{numero/100:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
+        if formateado != valor:
+            st.session_state[key] = formateado
+            st.rerun()
+
+        return numero / 100
+
+    return 0.0
+
+    
+    monto = input_monto_nu("Monto actual en NU (COP)", "input_nu")
+    monto_formateado = st.session_state.get("input_nu", "0,00")
+    
 
     if monto > 0:
 
