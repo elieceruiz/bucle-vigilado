@@ -284,6 +284,17 @@ if opcion in [EVENTO_A, EVENTO_B]:
 elif opcion == "viaje_tiempo":
 
     st.subheader("🧭 Viaje en el tiempo")
+    
+    # Mostrar confirmación si existe
+    if "mensaje_guardado" in st.session_state:
+        msg = st.session_state["mensaje_guardado"]
+    
+        st.success(
+            f"✔ Capital registrado: {msg['capital']} COP\n\n"
+            f"🕒 Viajas hasta: {msg['fecha_futura']}"
+        )
+    
+        del st.session_state["mensaje_guardado"]
 
     # =========================
     # INPUT TIPO NU (con on_change)
