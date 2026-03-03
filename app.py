@@ -177,7 +177,7 @@ def obtener_registros(nombre):
             "Día": dias_semana_3letras[fecha.weekday()],
             "Fecha": fecha.strftime("%d-%m-%y"),
             "Hora": fecha.strftime("%H:%M"),
-            "Sin recaída": diff
+            "Intervalo": diff
         })
     df = pd.DataFrame(filas)
     df.index = range(len(df), 0, -1)
@@ -276,7 +276,7 @@ opcion = eventos[seleccion]
 
 # ==== EVENTOS ====
 if opcion in [EVENTO_A, EVENTO_B]:
-    if st.button("☠️ Registrar evento"):
+    if st.button("Registrar"):
         registrar_evento(opcion, datetime.now(colombia))
     mostrar_racha(opcion, seleccion)
 
@@ -350,7 +350,7 @@ elif opcion == "viaje_tiempo":
             st.markdown(f"**Fecha equivalente futura:** {fecha_futura.strftime('%d-%m-%y %H:%M')}")
         else:
             fecha_futura = ahora
-            st.info("Sin adelanto aún")
+            st.info("Capital alineado con el tiempo actual")
     
         # 👇 EL BOTÓN VA AQUÍ, FUERA DEL IF/ELSE
         if st.button("Guardar estado"):
