@@ -285,37 +285,33 @@ elif opcion == "viaje_tiempo":
 
     st.subheader("🧭 Viaje en el tiempo")
     # =========================
-    # INPUT TIPO NU (formateo en vivo)
+    # INPUT TIPO NU (estable)
     # =========================
-    def input_monto_nu(label, key):
-        if key not in st.session_state:
-            st.session_state[key] = ""
 
-        valor = st.text_input(label, key=key)
+    if "input_nu_raw" not in st.session_state:
+        st.session_state["input_nu_raw"] = ""
 
-        limpio = "".join(filter(str.isdigit, valor))
+    raw = st.text_input("Monto actual en NU (COP)", key="input_nu_raw")
 
-        if limpio:
-            numero = int(limpio)
-            formateado = (
-                f"{numero/100:,.2f}"
-                .replace(",", "X")
-                .replace(".", ",")
-                .replace("X", ".")
-            )
+    limpio = "".join(filter(str.isdigit, raw))
 
-            if formateado != valor:
-                st.session_state[key] = formateado
-                st.rerun()
+    if limpio:
+        numero = int(limpio)
+        monto = numero / 100
+        monto_formateado = (
+            f"{monto:,.2f}"
+            .replace(",", "X")
+            .replace(".", ",")
+            .replace("X", ".")
+        )
+    else:
+        monto = 0.0
+        monto_formateado = "0,00"
 
-            return numero / 100
+    # Mostramos el valor formateado justo debajo
+    st.markdown(f"**Interpretado como:** {monto_formateado} COP")
 
-        return 0.0
-
-
-    monto = input_monto_nu("Monto actual en NU (COP)", "input_nu")
-    monto_formateado = st.session_state.get("input_nu", "0,00")    
-
+    
     if monto > 0:
 
         minutos_actuales = obtener_minutos_evento_b()
