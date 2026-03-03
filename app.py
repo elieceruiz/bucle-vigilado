@@ -25,6 +25,11 @@ coleccion_eventos = db["eventos"]
 coleccion_reflexiones = db["reflexiones"]
 
 # =========================
+# CAPITALIZACIÓN EVENTO B
+# =========================
+coleccion_capital_b = db["capitalizacion_b"]
+
+# =========================
 # OPENAI
 # =========================
 openai_client = OpenAI(api_key=st.secrets["openai_api_key"])
@@ -40,6 +45,7 @@ eventos = {
     "📑 Historial": "historial",
     "✊🏽": EVENTO_A,
     "💸": EVENTO_B,
+    "🧭 Viaje en el tiempo": "viaje_tiempo",
 }
 
 # =========================
@@ -225,6 +231,38 @@ def mostrar_racha(nombre_evento, emoji):
     st.metric("Duración", f"{int(delta.total_seconds()//60)} min", formatear_delta(rd, incluir_segundos=True))
 
 # =========================
+# VIAJE EN EL TIEMPO - EVENTO B
+# =========================
+from datetime import timedelta
+
+def parsear_y_formatear_cop(valor_str):
+    limpio = "".join(filter(str.isdigit, valor_str))
+    if not limpio:
+        return 0.00, "0,00"
+    valor = int(limpio) / 100
+    formateado = f"{valor:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+    return valor, formateado
+
+def obtener_minutos_evento_b():
+    if EVENTO_B not in st.session_state:
+        return 0
+    inicio = st.session_state[EVENTO_B]
+    ahora = datetime.now(colombia)
+    return int((ahora - inicio).total_seconds() // 60)
+
+def obtener_historial_capital_b():
+    registros = list(coleccion_capital_b.find().sort("fecha_registro", -1))
+    filas = []
+    for r in registros:
+        filas.append({
+            "Actual": r["fecha_registro"].strftime("%d-%m-%y %H:%M"),
+            "Adelantado": r["fecha_futura"].strftime("%d-%m-%y %H:%M"),
+            "COP": f"{r['monto']:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+        })
+    return pd.DataFrame(filas)
+
+
+# =========================
 # INTERFAZ PRINCIPAL
 # =========================
 st.title("Reinicia")
@@ -237,6 +275,39 @@ if opcion in [EVENTO_A, EVENTO_B]:
     if st.button("☠️ Registrar evento"):
         registrar_evento(opcion, datetime.now(colombia))
     mostrar_racha(opcion, seleccion)
+
+# ==== VIAJE EN EL TIEMPO ====
+elif opcion == "viaje_tiempo":
+
+    st.subheader("🧭 Viaje en el tiempo")
+
+    monto_raw = st.text_input("Monto actual en NU (COP)")
+    monto, monto_formateado = parsear_y_formatear_cop(monto_raw)
+
+    if monto > 0:
+
+        minutos_actuales = obtener_minutos_evento_b()
+        diferencia = int(monto - minutos_actuales)
+        ahora = datetime.now(colombia)
+
+        if diferencia > 0:
+            fecha_futura = ahora + timedelta(minutes=diferencia)
+
+            st.success("Adelanto detectado")
+            st.markdown(f"**Capital:** {monto_formateado} COP")
+            st.markdown(f"**Fecha equivalente futura:** {fecha_futura.strftime('%d-%m-%y %H:%M')}")
+        else:
+            fecha_futura = ahora
+            st.info("Sin adelanto aún")
+
+        if st.button("Guardar estado"):
+            coleccion_capital_b.insert_one({
+                "fecha_registro": ahora,
+                "fecha_futura": fecha_futura,
+                "monto": monto
+            })
+            st.success("Registro guardado")
+
 
 # ==== REFLEXIONES ====
 elif opcion == "reflexion":
@@ -272,7 +343,7 @@ elif opcion == "reflexion":
 
 # ==== HISTORIAL ====
 elif opcion == "historial":
-    tabs = st.tabs(["🧠 Reflexiones", "✊🏽 Evento A", "💸 Evento B"])
+    tabs = st.tabs(["🧠 Reflexiones", "✊🏽 Evento A", "💸 Evento B", "🧭"])
 
     with tabs[0]:
         df = obtener_reflexiones()
@@ -291,3 +362,11 @@ elif opcion == "historial":
 
     with tabs[2]:
         st.dataframe(obtener_registros(EVENTO_B), use_container_width=True, hide_index=False)
+        
+    with tabs[3]:
+        df_cap = obtener_historial_capital_b()
+        if not df_cap.empty:
+            st.dataframe(df_cap, use_container_width=True, hide_index=True)
+        else:
+            st.info("Sin registros aún")
+        
