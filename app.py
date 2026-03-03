@@ -255,8 +255,10 @@ def obtener_historial_capital_b():
     filas = []
     for r in registros:
         filas.append({
-            "Actual": r["fecha_registro"].strftime("%d-%m-%y %H:%M"),
-            "Adelantado": r["fecha_futura"].strftime("%d-%m-%y %H:%M"),
+            fecha_reg = r["fecha_registro"].astimezone(colombia)
+            fecha_fut = r["fecha_futura"].astimezone(colombia)
+            "Actual": fecha_reg.strftime("%d-%m-%y %H:%M"),
+            "Adelantado": fecha_fut.strftime("%d-%m-%y %H:%M"),
             "COP": f"{r['monto']:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
         })
     return pd.DataFrame(filas)
