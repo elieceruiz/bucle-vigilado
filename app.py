@@ -414,7 +414,7 @@ elif opcion == "viaje_tiempo":
         
             tiempo_adelanto = minutos_a_tiempo_humano(diferencia)
         
-            st.success(f"Adelanto detectado: {tiempo_adelanto}")
+            st.success(f"Adelanto detectado:\n {tiempo_adelanto}")
             st.markdown(f"**Capital:** {monto_formateado} COP")
             st.markdown(f"**Fecha equivalente futura:** {fecha_futura.strftime('%d-%m-%y %H:%M')}")
             st.caption(f"Ventaja exacta: +{diferencia:,} minutos".replace(",", "."))
