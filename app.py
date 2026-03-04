@@ -344,14 +344,26 @@ if opcion in [EVENTO_A, EVENTO_B]:
         registrar_evento(opcion, datetime.now(colombia))
     mostrar_racha(opcion, seleccion)
 
+# ==== VIAJE EN EL TIEMPO ====
+elif opcion == "viaje_tiempo":
+
+    # Mostrar confirmación si existe
+    if "mensaje_guardado" in st.session_state:
+
+        msg = st.session_state["mensaje_guardado"]
+
+        st.success(
+            f"✔ Capital registrado: {msg['capital']} COP\n\n"
+            f"🕒 Viajas hasta: {msg['fecha_futura']}"
+        )
+
+        del st.session_state["mensaje_guardado"]
 
     # =========================
     # CAPITAL DESDE YNAB
     # =========================
     
     monto, objetivo, progreso = obtener_capital_desde_ynab()
-
-    st.session_state["estado_guardado"] = False
     
     monto_formateado = (
         f"{monto:,.2f}"
@@ -431,7 +443,6 @@ if opcion in [EVENTO_A, EVENTO_B]:
                     "fecha_futura": fecha_futura.strftime("%d-%m-%y %H:%M")
                 }
         
-                st.session_state["limpiar_input_nu"] = True
                 st.rerun()        
 
 # ==== REFLEXIONES ====
