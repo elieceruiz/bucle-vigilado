@@ -457,13 +457,35 @@ elif opcion == "viaje_tiempo":
         del st.session_state["mensaje_guardado"]
         del st.session_state["borrar_mensaje"]
 
+
 # ==== REFLEXIONES ====
 elif opcion == "reflexion":
+
+    # Mostrar confirmación si existe
+    if "mensaje_reflexion" in st.session_state:
+
+        msg = st.session_state["mensaje_reflexion"]
+
+        info_cat = sistema_categorial.get(
+            msg["categoria"],
+            {"categoria":"Sin categoría","subcategoria":"","descriptor":"","observable":""}
+        )
+
+        st.success("🧠 Reflexión registrada")
+
+        st.markdown(f"**Reflexión:** {msg['texto']}")
+        st.markdown(f"**Categoría:** {info_cat['categoria']}")
+        st.markdown(f"**Subcategoría:** {info_cat['subcategoria']}")
+
+        del st.session_state["mensaje_reflexion"]
+
+
     # 🔹 Limpieza segura de session_state
     if st.session_state.get("limpiar_reflexion", False):
         st.session_state["texto_reflexion"] = ""
         st.session_state["emociones_reflexion"] = []
         st.session_state["limpiar_reflexion"] = False
+
 
     emociones = st.multiselect(
         "¿Cómo te sentías?",
@@ -471,20 +493,18 @@ elif opcion == "reflexion":
          "😌 Aliviado / Tranquilo", "😓 Culpable", "🥱 Apático / Cansado", "😔 Triste"],
         key="emociones_reflexion"
     )
+
     texto = st.text_area("¿Querés dejar algo escrito?", key="texto_reflexion")
 
-    if (texto.strip() or emociones) and st.button("📝 Guardar reflexión"):
-        categoria = guardar_reflexion(datetime.now(colombia), emociones, texto)
-        info_cat = sistema_categorial.get(categoria, {"categoria":"Sin categoría","subcategoria":"","descriptor":"","observable":""})
 
-        st.markdown("### ✅ Reflexión guardada")
-        st.markdown(f"**Reflexión:** {texto.strip()}")
-        st.markdown(f"**Categoría:** {info_cat['categoria']}")
-        st.markdown(f"**Subcategoría:** {info_cat['subcategoria']}")
-        if info_cat.get("descriptor"):
-            st.markdown(f"**Descriptor:** {info_cat['descriptor']}")
-        if info_cat.get("observable"):
-            st.markdown(f"**Observable:** {info_cat['observable']}")
+    if (texto.strip() or emociones) and st.button("📝 Guardar reflexión"):
+
+        categoria = guardar_reflexion(datetime.now(colombia), emociones, texto)
+
+        st.session_state["mensaje_reflexion"] = {
+            "texto": texto.strip(),
+            "categoria": categoria
+        }
 
         st.session_state["limpiar_reflexion"] = True
         st.rerun()
