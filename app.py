@@ -354,7 +354,7 @@ elif opcion == "viaje_tiempo":
     
         st.success(
             f"✔ Capital registrado: {msg['capital']} COP\n\n"
-            f"🕒 Viajas hasta: {msg['fecha_futura']}"
+            f"🎟️ Viajas hasta: {msg['fecha_futura']}"
         )
     
         # marcar para borrar luego
