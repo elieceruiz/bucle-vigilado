@@ -495,9 +495,13 @@ elif opcion == "historial":
 
     with tabs[0]:
         df = obtener_reflexiones()
+        
+        st.caption(f"Total de registros: {len(df)}")
+        
         for _, r in df.iterrows():
             with st.expander(f"{r['Fecha']} {r['Hora']} {r['Emociones']}"):
                 st.write(r["Reflexión"])
+                st.markdown("---")
                 st.markdown(f"**Categoría:** {r['Categoría']}")
                 st.markdown(f"**Subcategoría:** {r['Subcategoría']}")
                 if r["Descriptor"]:
