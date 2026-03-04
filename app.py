@@ -6,6 +6,7 @@ import pandas as pd
 from dateutil.relativedelta import relativedelta
 from streamlit_autorefresh import st_autorefresh
 from openai import OpenAI
+import requests
 
 # =========================
 # CONFIGURACIÓN GENERAL
@@ -33,6 +34,16 @@ coleccion_capital_b = db["capitalizacion_b"]
 # OPENAI
 # =========================
 openai_client = OpenAI(api_key=st.secrets["openai_api_key"])
+
+# =========================
+# YNAB API
+# =========================
+YNAB_TOKEN = st.secrets["ynab_token"]
+YNAB_BUDGET_ID = st.secrets["ynab_budget_id"]
+
+headers_ynab = {
+    "Authorization": f"Bearer {YNAB_TOKEN}"
+}
 
 # =========================
 # EVENTOS
@@ -267,6 +278,33 @@ def obtener_historial_capital_b():
     return pd.DataFrame(filas)
 
 # =========================
+# YNAB - OBTENER CAPITAL
+# =========================
+def obtener_capital_desde_ynab():
+
+    url = f"https://api.youneedabudget.com/v1/budgets/{YNAB_BUDGET_ID}/categories"
+    r = requests.get(url, headers=headers_ynab)
+
+    if r.status_code != 200:
+        return 0
+
+    data = r.json()
+
+    for grupo in data["data"]["category_groups"]:
+
+        if grupo["name"] == "Savings":
+
+            for cat in grupo["categories"]:
+
+                if cat["name"] == "💜 1 min 1 COP":
+
+                    # YNAB usa milésimas
+                    monto = cat["balance"] / 1000
+                    return monto
+
+    return 0
+
+# =========================
 # INTERFAZ PRINCIPAL
 # =========================
 st.title("Reinicia")
@@ -295,62 +333,45 @@ elif opcion == "viaje_tiempo":
         del st.session_state["mensaje_guardado"]
 
     # =========================
-    # INPUT TIPO NU (con on_change)
+    # CAPITAL DESDE YNAB
     # =========================
-    def formatear_input_nu():
-        raw = st.session_state.get("input_nu", "")
-        limpio = "".join(filter(str.isdigit, raw))
-
-        if limpio:
-            numero = int(limpio)
-            monto_tmp = numero / 100
-            formateado = (
-                f"{monto_tmp:,.2f}"
-                .replace(",", "X")
-                .replace(".", ",")
-                .replace("X", ".")
-            )
-            st.session_state["input_nu"] = formateado
-        else:
-            st.session_state["input_nu"] = ""
-
-    # Limpieza diferida del input
-    if st.session_state.get("limpiar_input_nu", False):
-        st.session_state["input_nu"] = ""
-        st.session_state["limpiar_input_nu"] = False
-
     
-    st.text_input(
-        "Monto actual en NU (COP)",
-        key="input_nu",
-        on_change=formatear_input_nu
+    monto = obtener_capital_desde_ynab()
+    
+    monto_formateado = (
+        f"{monto:,.2f}"
+        .replace(",", "X")
+        .replace(".", ",")
+        .replace("X", ".")
     )
-
-    raw_final = st.session_state.get("input_nu", "")
-    limpio_final = "".join(filter(str.isdigit, raw_final))
-
-    if limpio_final:
-        monto = int(limpio_final) / 100
-        monto_formateado = raw_final
-    else:
-        monto = 0.0
-        monto_formateado = "0,00"
-
-
+    
+    st.markdown(f"**Capital detectado en YNAB:** {monto_formateado} COP")
+    
     if monto > 0:
         minutos_actuales = obtener_minutos_evento_b()
         diferencia = int(monto - minutos_actuales)
         ahora = datetime.now(colombia)
-    
+
+
         if diferencia > 0:
+        
             fecha_futura = ahora + timedelta(minutes=diferencia)
-    
+        
             st.success("Adelanto detectado")
             st.markdown(f"**Capital:** {monto_formateado} COP")
             st.markdown(f"**Fecha equivalente futura:** {fecha_futura.strftime('%d-%m-%y %H:%M')}")
-        else:
+        
+        elif diferencia == 0:
+        
             fecha_futura = ahora
-            st.info("Capital alineado con el tiempo actual")
+        
+            st.info("Capital exactamente alineado con el tiempo actual")
+        
+        else:
+        
+            atraso = abs(diferencia)
+        
+            st.warning(f"Atraso detectado: {atraso} minutos")
     
         # 👇 EL BOTÓN VA AQUÍ, FUERA DEL IF/ELSE
         if st.button("Guardar estado"):
