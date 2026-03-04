@@ -349,14 +349,17 @@ elif opcion == "viaje_tiempo":
 
     # Mostrar confirmación si existe
     if "mensaje_guardado" in st.session_state:
-
+    
         msg = st.session_state["mensaje_guardado"]
-
+    
         st.success(
             f"✔ Capital registrado: {msg['capital']} COP\n\n"
             f"🕒 Viajas hasta: {msg['fecha_futura']}"
         )
-
+    
+        # marcar para borrar luego
+        st.session_state["borrar_mensaje"] = True
+    
     # =========================
     # CAPITAL DESDE YNAB
     # =========================
@@ -375,7 +378,7 @@ elif opcion == "viaje_tiempo":
     # VENTAJA TEMPORAL
     # =========================
     
-    tiempo_humano = minutos_a_tiempo_humano(int(monto))
+    tiempo_humano = minutos_a_tiempo_humano(round(monto))
     
     st.markdown("### ⏳ Ventaja temporal")
     
@@ -384,6 +387,9 @@ elif opcion == "viaje_tiempo":
         f"+ {int(monto):,} minutos".replace(",", "."),
         tiempo_humano
     )   
+
+    years = monto / 525600
+    st.caption(f"≈ {years:.2f} años de vida acumulados")
     
     objetivo_formateado = (
         f"{objetivo:,.2f}"
@@ -393,7 +399,7 @@ elif opcion == "viaje_tiempo":
     )
     
     st.markdown(f"**Objetivo YNAB:** {objetivo_formateado} COP")
-    st.progress(progreso / 100)
+    st.progress(min(max(progreso / 100, 0), 1))
     st.caption(f"{progreso}% del objetivo alcanzado")
 
     
@@ -402,20 +408,23 @@ elif opcion == "viaje_tiempo":
         diferencia = int(monto - minutos_actuales)
         ahora = datetime.now(colombia)
 
-
         if diferencia > 0:
         
             fecha_futura = ahora + timedelta(minutes=diferencia)
         
-            st.success("Adelanto detectado")
+            tiempo_adelanto = minutos_a_tiempo_humano(diferencia)
+        
+            st.success(f"Adelanto detectado: {tiempo_adelanto}")
             st.markdown(f"**Capital:** {monto_formateado} COP")
             st.markdown(f"**Fecha equivalente futura:** {fecha_futura.strftime('%d-%m-%y %H:%M')}")
+            st.caption(f"Ventaja exacta: +{diferencia:,} minutos".replace(",", "."))
         
         elif diferencia == 0:
         
             fecha_futura = ahora
         
             st.info("Capital exactamente alineado con el tiempo actual")
+            st.markdown(f"**Capital:** {monto_formateado} COP")
         
         else:
         
@@ -423,7 +432,7 @@ elif opcion == "viaje_tiempo":
             fecha_futura = ahora
         
             st.warning(f"Atraso detectado: {atraso} minutos")
-
+            st.markdown(f"**Capital:** {monto_formateado} COP")
 
         # 👇 EL BOTÓN VA AQUÍ, FUERA DEL IF/ELSE
         if "mensaje_guardado" not in st.session_state:
@@ -442,6 +451,11 @@ elif opcion == "viaje_tiempo":
                 }
         
                 st.rerun()        
+
+    # limpiar mensaje después de mostrarlo una vez
+    if st.session_state.get("borrar_mensaje"):
+        del st.session_state["mensaje_guardado"]
+        del st.session_state["borrar_mensaje"]
 
 # ==== REFLEXIONES ====
 elif opcion == "reflexion":
