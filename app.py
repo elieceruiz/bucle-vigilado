@@ -424,24 +424,26 @@ elif opcion == "viaje_tiempo":
             fecha_futura = ahora
         
             st.warning(f"Atraso detectado: {atraso} minutos")
-    
-        # 👇 EL BOTÓN VA AQUÍ, FUERA DEL IF/ELSE
-        if st.button("Guardar estado"):
-    
-            coleccion_capital_b.insert_one({
-                "fecha_registro": ahora,
-                "fecha_futura": fecha_futura,
-                "monto": monto
-            })
-    
-            st.session_state["mensaje_guardado"] = {
-                "capital": monto_formateado,
-                "fecha_futura": fecha_futura.strftime("%d-%m-%y %H:%M")
-            }
-    
-            st.session_state["limpiar_input_nu"] = True
-            st.rerun()
 
+
+        # 👇 EL BOTÓN VA AQUÍ, FUERA DEL IF/ELSE
+        if "mensaje_guardado" not in st.session_state:
+        
+            if st.button("Guardar estado"):
+        
+                coleccion_capital_b.insert_one({
+                    "fecha_registro": ahora,
+                    "fecha_futura": fecha_futura,
+                    "monto": monto
+                })
+        
+                st.session_state["mensaje_guardado"] = {
+                    "capital": monto_formateado,
+                    "fecha_futura": fecha_futura.strftime("%d-%m-%y %H:%M")
+                }
+        
+                st.session_state["limpiar_input_nu"] = True
+                st.rerun()        
 
 # ==== REFLEXIONES ====
 elif opcion == "reflexion":
