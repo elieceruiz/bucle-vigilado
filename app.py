@@ -521,7 +521,7 @@ elif opcion == "historial":
         for _, r in df.iterrows():
             with st.expander(f"{r['Fecha']} {r['Hora']} {r['Emociones']}"):
                 st.write(r["Reflexión"])
-                st.markdown("---")
+                st.divider()
                 st.markdown(f"**Categoría:** {r['Categoría']}")
                 st.markdown(f"**Subcategoría:** {r['Subcategoría']}")
                 if r["Descriptor"]:
