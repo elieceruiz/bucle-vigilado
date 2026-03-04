@@ -1,5 +1,5 @@
 import streamlit as st
-from datetime import datetime
+from datetime import datetime, timedelta
 from pymongo import MongoClient
 import pytz
 import pandas as pd
@@ -129,6 +129,31 @@ def formatear_delta(rd, incluir_segundos=False):
         partes.append(f"{rd.seconds}s")
     return " ".join(partes) if partes else "0m"
 
+# =========================
+# CONVERTIR MINUTOS A TIEMPO HUMANO
+# =========================
+def minutos_a_tiempo_humano(minutos):
+
+    ahora = datetime.now(colombia)
+    futuro = ahora + timedelta(minutes=minutos)
+
+    rd = relativedelta(futuro, ahora)
+
+    partes = []
+
+    if rd.years:
+        partes.append(f"{rd.years} años")
+    if rd.months:
+        partes.append(f"{rd.months} meses")
+    if rd.days:
+        partes.append(f"{rd.days} días")
+    if rd.hours:
+        partes.append(f"{rd.hours} horas")
+    if rd.minutes:
+        partes.append(f"{rd.minutes} minutos")
+
+    return ", ".join(partes) if partes else "0 minutos"
+
 def clasificar_reflexion_openai(texto):
     prompt = f"""Sistema categorial para clasificar reflexiones:
 
@@ -244,8 +269,6 @@ def mostrar_racha(nombre_evento, emoji):
 # =========================
 # VIAJE EN EL TIEMPO - EVENTO B
 # =========================
-from datetime import timedelta
-
 def parsear_y_formatear_cop(valor_str):
     limpio = "".join(filter(str.isdigit, valor_str))
     if not limpio:
@@ -286,7 +309,7 @@ def obtener_capital_desde_ynab():
     r = requests.get(url, headers=headers_ynab)
 
     if r.status_code != 200:
-        return 0
+        return 0, 0, 0
 
     data = r.json()
 
@@ -298,11 +321,14 @@ def obtener_capital_desde_ynab():
 
                 if cat["name"] == "💜 1 min 1 COP":
 
-                    # YNAB usa milésimas
-                    monto = cat["balance"] / 1000
-                    return monto
+                    balance = cat["balance"] / 1000
+                    target = (cat.get("goal_target") or 0) / 1000
+                    progress = cat.get("goal_percentage_complete") or 0
 
-    return 0
+                    return balance, target, progress
+
+    return 0, 0, 0
+
 
 # =========================
 # INTERFAZ PRINCIPAL
@@ -336,7 +362,7 @@ elif opcion == "viaje_tiempo":
     # CAPITAL DESDE YNAB
     # =========================
     
-    monto = obtener_capital_desde_ynab()
+    monto, objetivo, progreso = obtener_capital_desde_ynab()
     
     monto_formateado = (
         f"{monto:,.2f}"
@@ -346,6 +372,31 @@ elif opcion == "viaje_tiempo":
     )
     
     st.markdown(f"**Capital detectado en YNAB:** {monto_formateado} COP")
+    # =========================
+    # VENTAJA TEMPORAL
+    # =========================
+    
+    tiempo_humano = minutos_a_tiempo_humano(int(monto))
+    
+    st.markdown("### ⏳ Ventaja temporal")
+    
+    st.metric(
+        "Tiempo acumulado",
+        f"+ {int(monto):,} minutos".replace(",", "."),
+        tiempo_humano
+    )   
+    
+    objetivo_formateado = (
+        f"{objetivo:,.2f}"
+        .replace(",", "X")
+        .replace(".", ",")
+        .replace("X", ".")
+    )
+    
+    st.markdown(f"**Objetivo YNAB:** {objetivo_formateado} COP")
+    st.progress(progreso / 100)
+    st.caption(f"{progreso}% del objetivo alcanzado")
+
     
     if monto > 0:
         minutos_actuales = obtener_minutos_evento_b()
@@ -370,6 +421,7 @@ elif opcion == "viaje_tiempo":
         else:
         
             atraso = abs(diferencia)
+            fecha_futura = ahora
         
             st.warning(f"Atraso detectado: {atraso} minutos")
     
