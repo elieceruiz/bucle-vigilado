@@ -357,8 +357,6 @@ elif opcion == "viaje_tiempo":
             f"🕒 Viajas hasta: {msg['fecha_futura']}"
         )
 
-        del st.session_state["mensaje_guardado"]
-
     # =========================
     # CAPITAL DESDE YNAB
     # =========================
