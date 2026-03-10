@@ -52,7 +52,7 @@ EVENTO_A = "La Iniciativa Aquella"
 EVENTO_B = "La Iniciativa de Pago"
 
 eventos = {
-    "🧠 Reflexión": "reflexion",
+    "🧠": "reflexion",
     "📑 Historial": "historial",
     "✊🏽": EVENTO_A,
     "💸": EVENTO_B,
