@@ -319,7 +319,7 @@ def obtener_capital_desde_ynab():
 
             for cat in grupo["categories"]:
 
-                if cat["name"] == "💜 1 min 1 COP":
+                if cat["name"] == "💜 1 min 1 COP 💸":
 
                     balance = cat["balance"] / 1000
                     target = (cat.get("goal_target") or 0) / 1000
