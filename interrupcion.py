@@ -55,9 +55,9 @@ def mostrar_interrupcion():
     ]
 
     # =========================
-    # ÚLTIMO REGISTRO (ROBUSTO)
+    # ÚLTIMO REGISTRO (para tiempo en vivo)
     # =========================
-    ultimo_valido = coleccion_eventos.find_one(
+    ultimo_global = coleccion_eventos.find_one(
         {"evento": "interrupcion"},
         sort=[("fecha_hora", -1)]
     )
@@ -75,16 +75,18 @@ def mostrar_interrupcion():
         return
 
     # =========================
-    # INICIO (CON TIEMPO)
+    # INICIO (TIEMPO VISIBLE)
     # =========================
     if paso == 0:
         st.markdown("## 🔴 Interrupción")
 
-        if ultimo_valido:
+        if ultimo_global:
             try:
-                referencia = ultimo_valido.get("fin") or ultimo_valido.get("fecha_hora")
+                referencia = ultimo_global.get("fin") or ultimo_global.get("fecha_hora")
+                referencia = referencia.astimezone(colombia)
 
-                segundos = int((datetime.now(colombia) - referencia).total_seconds())
+                ahora = datetime.now(colombia)
+                segundos = int((ahora - referencia).total_seconds())
                 minutos = segundos // 60
 
                 st.metric("🧭 Tiempo sin caer", f"{minutos} min")
@@ -145,7 +147,9 @@ def mostrar_interrupcion():
         inicio = st.session_state.get("interrupcion_inicio")
         fin = st.session_state.get("interrupcion_fin")
 
+        # =========================
         # DURACIÓN
+        # =========================
         duracion_min = None
         if inicio and fin:
             try:
@@ -153,16 +157,40 @@ def mostrar_interrupcion():
             except:
                 pass
 
-        # GAP (robusto)
-        gap_min = None
-        if ultimo_valido and inicio:
-            try:
-                referencia = ultimo_valido.get("fin") or ultimo_valido.get("fecha_hora")
-                gap_min = int((inicio - referencia).total_seconds() // 60)
-            except:
-                pass
+        # =========================
+        # BUSCAR EL ANTERIOR REAL
+        # =========================
+        anterior = None
+        if inicio:
+            anterior = coleccion_eventos.find_one(
+                {
+                    "evento": "interrupcion",
+                    "fecha_hora": {"$lt": inicio}
+                },
+                sort=[("fecha_hora", -1)]
+            )
 
+        # =========================
+        # GAP CORRECTO
+        # =========================
+        gap_min = None
+        if anterior and inicio:
+            try:
+                referencia = anterior.get("fin") or anterior.get("fecha_hora")
+                referencia = referencia.astimezone(colombia)
+
+                gap_min = int((inicio - referencia).total_seconds() // 60)
+
+                # blindaje: evitar negativos
+                if gap_min < 0:
+                    gap_min = None
+
+            except:
+                gap_min = None
+
+        # =========================
         # GUARDAR
+        # =========================
         if not st.session_state["interrupcion_guardada"]:
             guardar_interrupcion({
                 "evento": "interrupcion",
@@ -184,19 +212,26 @@ def mostrar_interrupcion():
         if gap_min is not None:
             st.info(f"Desde el anterior: {gap_min} min")
         else:
-            st.caption("Primer registro de seguimiento")
+            st.caption("Sin referencia anterior válida")
 
+        # =========================
         # CONTEXTO FINAL
-        if ultimo_valido and fin:
+        # =========================
+        if anterior and fin:
             try:
-                referencia = ultimo_valido.get("fin") or ultimo_valido.get("fecha_hora")
+                referencia = anterior.get("fin") or anterior.get("fecha_hora")
+                referencia = referencia.astimezone(colombia)
+
                 minutos_post = int((fin - referencia).total_seconds() // 60)
-                st.caption(f"🧭 Este corte ocurrió {minutos_post} min después del anterior")
+
+                if minutos_post >= 0:
+                    st.caption(f"🧭 Este corte ocurrió {minutos_post} min después del anterior")
+
             except:
                 pass
 
         # =========================
-        # CIERRE
+        # CIERRE UX
         # =========================
         st.markdown("### ✔ Cerrado")
 
