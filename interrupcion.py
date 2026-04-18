@@ -2,6 +2,7 @@
 
 import streamlit as st
 from datetime import datetime
+from streamlit_autorefresh import st_autorefresh  # 👈 NUEVO
 
 from db import coleccion_eventos
 from config import colombia
@@ -12,6 +13,11 @@ def guardar_interrupcion(data):
 
 
 def mostrar_interrupcion():
+
+    # =========================
+    # AUTOREFRESH SOLO AQUÍ
+    # =========================
+    st_autorefresh(interval=1000, key="refresh_interrupcion")  # 👈 NUEVO
 
     if "paso_interrupcion" not in st.session_state:
         st.session_state["paso_interrupcion"] = 0
@@ -45,7 +51,9 @@ def mostrar_interrupcion():
         "Encuentro."
     ]
 
-    # TIEMPO DESDE ÚLTIMO
+    # =========================
+    # TIEMPO DESDE ÚLTIMO (VIVO)
+    # =========================
     ultimo_valido = coleccion_eventos.find_one(
         {"evento": "interrupcion", "fin": {"$ne": None}},
         sort=[("fecha_hora", -1)]
@@ -58,6 +66,9 @@ def mostrar_interrupcion():
         except:
             pass
 
+    # =========================
+    # BLOQUEO SI YA CERRÓ
+    # =========================
     if st.session_state["interrupcion_cerrada"]:
         st.success("✔ Interrupción cerrada")
 
@@ -67,6 +78,9 @@ def mostrar_interrupcion():
 
         return
 
+    # =========================
+    # INICIO
+    # =========================
     if paso == 0:
         st.markdown("## 🔴 Interrupción")
 
@@ -75,6 +89,9 @@ def mostrar_interrupcion():
             st.session_state["paso_interrupcion"] = 1
             st.rerun()
 
+    # =========================
+    # LIBRETO
+    # =========================
     elif 1 <= paso <= len(flujo):
 
         st.write(flujo[paso - 1])
@@ -97,6 +114,9 @@ def mostrar_interrupcion():
                 st.session_state["paso_interrupcion"] += 1
                 st.rerun()
 
+    # =========================
+    # CORTE
+    # =========================
     elif paso == len(flujo) + 1:
 
         st.write("Ya sabés cómo termina")
@@ -106,6 +126,9 @@ def mostrar_interrupcion():
             st.session_state["paso_interrupcion"] += 1
             st.rerun()
 
+    # =========================
+    # CÁLCULO Y GUARDADO
+    # =========================
     elif paso == len(flujo) + 2:
 
         inicio = st.session_state.get("interrupcion_inicio")
