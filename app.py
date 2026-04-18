@@ -2,6 +2,7 @@
 
 import streamlit as st
 from datetime import datetime, timedelta
+import pandas as pd
 
 # =========================
 # IMPORTS PROPIOS
@@ -27,7 +28,6 @@ from interrupcion import mostrar_interrupcion
 # CONFIGURACIÓN
 # =========================
 st.set_page_config(page_title="Reinicia", layout="centered")
-
 st.title("Reinicia")
 
 # =========================
@@ -78,7 +78,7 @@ if opcion != "interrupcion":
             del st.session_state[k]
 
 # =========================
-# 🔴 INTERRUPCIÓN (NEIL)
+# 🔴 INTERRUPCIÓN
 # =========================
 if opcion == "interrupcion":
     mostrar_interrupcion()
@@ -102,7 +102,6 @@ elif opcion in [EVENTO_A, EVENTO_B]:
 elif opcion == "viaje_tiempo":
 
     if "mensaje_guardado" in st.session_state:
-
         msg = st.session_state["mensaje_guardado"]
 
         st.success(
@@ -154,7 +153,6 @@ elif opcion == "viaje_tiempo":
         ahora = datetime.now(colombia)
 
         if diferencia > 0:
-
             fecha_futura = ahora + timedelta(minutes=diferencia)
             tiempo_adelanto = minutos_a_tiempo_humano(diferencia)
 
@@ -164,24 +162,18 @@ elif opcion == "viaje_tiempo":
             st.caption(f"Ventaja exacta: +{diferencia:,} minutos".replace(",", "."))
 
         elif diferencia == 0:
-
             fecha_futura = ahora
-
             st.info("Capital exactamente alineado con el tiempo actual")
             st.markdown(f"**Capital:** {monto_formateado} COP")
 
         else:
-
             atraso = abs(diferencia)
             fecha_futura = ahora
-
             st.warning(f"Atraso detectado: {atraso} minutos")
             st.markdown(f"**Capital:** {monto_formateado} COP")
 
         if "mensaje_guardado" not in st.session_state:
-
             if st.button("Guardar estado"):
-
                 coleccion_capital_b.insert_one({
                     "fecha_registro": ahora,
                     "fecha_futura": fecha_futura,
@@ -205,7 +197,6 @@ elif opcion == "viaje_tiempo":
 elif opcion == "reflexion":
 
     if "mensaje_reflexion" in st.session_state:
-
         msg = st.session_state["mensaje_reflexion"]
 
         st.success("🧠 Reflexión registrada")
@@ -247,9 +238,49 @@ elif opcion == "historial":
 
     tabs = st.tabs(["🧠", "✊🏽", "💸", "🧭"])
 
+    # =========================
+    # 🧠 REFLEXIONES + INTERRUPCIONES
+    # =========================
     with tabs[0]:
+
+        # 🔹 INTERRUPCIONES
+        interrupciones = list(
+            coleccion_eventos.find({"evento": "interrupcion"})
+            .sort("fecha_hora", -1)
+        )
+
+        if interrupciones:
+            st.markdown("### 🔴 Interrupciones")
+
+            for r in interrupciones:
+                fecha = r["fecha_hora"].astimezone(colombia)
+
+                dur = r.get("duracion_min")
+                gap = r.get("desde_anterior_min")
+                texto = r.get("texto", "")
+
+                titulo = f"{fecha.strftime('%d-%m-%y %H:%M')}"
+
+                with st.expander(titulo):
+
+                    if dur is not None:
+                        st.markdown(f"**Duración:** {dur} min")
+
+                    if gap is not None:
+                        st.markdown(f"**Desde anterior:** {gap} min")
+
+                    if texto:
+                        if len(texto) > 300:
+                            st.write(texto[:300] + "...")
+                            with st.expander("Ver completo"):
+                                st.write(texto)
+                        else:
+                            st.write(texto)
+
+        # 🔹 REFLEXIONES
         df = obtener_reflexiones()
-        st.caption(f"Total de registros: {len(df)}")
+        st.markdown("### 🧠 Reflexiones")
+        st.caption(f"Total: {len(df)}")
 
         for _, r in df.iterrows():
             with st.expander(f"{r['Fecha']} {r['Hora']} {r['Emociones']}"):
@@ -258,12 +289,21 @@ elif opcion == "historial":
                 st.markdown(f"**Categoría:** {r['Categoría']}")
                 st.markdown(f"**Subcategoría:** {r['Subcategoría']}")
 
+    # =========================
+    # ✊🏽 EVENTO A
+    # =========================
     with tabs[1]:
         st.dataframe(obtener_registros(EVENTO_A), use_container_width=True)
 
+    # =========================
+    # 💸 EVENTO B
+    # =========================
     with tabs[2]:
         st.dataframe(obtener_registros(EVENTO_B), use_container_width=True)
 
+    # =========================
+    # 🧭 CAPITAL
+    # =========================
     with tabs[3]:
         df_cap = obtener_historial_capital_b()
         if not df_cap.empty:
