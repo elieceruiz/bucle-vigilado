@@ -15,7 +15,7 @@ def guardar_interrupcion(data):
 def mostrar_interrupcion():
 
     # =========================
-    # AUTOREFRESH
+    # AUTOREFRESH (tiempo en vivo)
     # =========================
     st_autorefresh(interval=1000, key="refresh_interrupcion")
 
@@ -55,12 +55,25 @@ def mostrar_interrupcion():
     ]
 
     # =========================
-    # ÚLTIMO REGISTRO (para tiempo en vivo)
+    # TIEMPO DESDE EL ÚLTIMO
     # =========================
-    ultimo_global = coleccion_eventos.find_one(
+    ultimo = coleccion_eventos.find_one(
         {"evento": "interrupcion"},
         sort=[("fecha_hora", -1)]
     )
+
+    if paso == 0 and ultimo:
+        try:
+            referencia = ultimo.get("fin") or ultimo.get("fecha_hora")
+            referencia = referencia.astimezone(colombia)
+
+            ahora = datetime.now(colombia)
+            minutos = int((ahora - referencia).total_seconds() // 60)
+
+            st.success(f"🧭 {minutos} min sin caer")
+
+        except:
+            pass
 
     # =========================
     # BLOQUEO SI YA CERRÓ
@@ -75,27 +88,10 @@ def mostrar_interrupcion():
         return
 
     # =========================
-    # INICIO (TIEMPO VISIBLE)
+    # INICIO
     # =========================
     if paso == 0:
         st.markdown("## 🔴 Interrupción")
-
-        if ultimo_global:
-            try:
-                referencia = ultimo_global.get("fin") or ultimo_global.get("fecha_hora")
-                referencia = referencia.astimezone(colombia)
-
-                ahora = datetime.now(colombia)
-                segundos = int((ahora - referencia).total_seconds())
-                minutos = segundos // 60
-
-                st.metric("🧭 Tiempo sin caer", f"{minutos} min")
-
-                progreso = (segundos % 3600) / 3600
-                st.progress(progreso)
-
-            except:
-                pass
 
         if st.button("🔘 Empezar"):
             st.session_state["interrupcion_inicio"] = datetime.now(colombia)
@@ -158,7 +154,7 @@ def mostrar_interrupcion():
                 pass
 
         # =========================
-        # BUSCAR EL ANTERIOR REAL
+        # ANTERIOR REAL
         # =========================
         anterior = None
         if inicio:
@@ -171,7 +167,7 @@ def mostrar_interrupcion():
             )
 
         # =========================
-        # GAP CORRECTO
+        # GAP
         # =========================
         gap_min = None
         if anterior and inicio:
@@ -181,57 +177,43 @@ def mostrar_interrupcion():
 
                 gap_min = int((inicio - referencia).total_seconds() // 60)
 
-                # blindaje: evitar negativos
                 if gap_min < 0:
                     gap_min = None
 
             except:
-                gap_min = None
+                pass
 
         # =========================
-        # GUARDAR
+        # GUARDAR LIMPIO (SIN NULL)
         # =========================
         if not st.session_state["interrupcion_guardada"]:
-            guardar_interrupcion({
+
+            data = {
                 "evento": "interrupcion",
                 "inicio": inicio,
                 "fin": fin,
                 "duracion_min": duracion_min,
-                "desde_anterior_min": gap_min,
                 "texto": st.session_state.get("interrupcion_texto", ""),
                 "fecha_hora": fin or datetime.now(colombia)
-            })
+            }
+
+            if gap_min is not None:
+                data["desde_anterior_min"] = gap_min
+
+            guardar_interrupcion(data)
             st.session_state["interrupcion_guardada"] = True
 
         # =========================
         # FEEDBACK
         # =========================
         if duracion_min is not None:
-            st.success(f"⏱️ Impulso duró {duracion_min} min")
+            st.success(f"⏱️ {duracion_min} min")
 
         if gap_min is not None:
             st.info(f"Desde el anterior: {gap_min} min")
-        else:
-            st.caption("Sin referencia anterior válida")
 
         # =========================
-        # CONTEXTO FINAL
-        # =========================
-        if anterior and fin:
-            try:
-                referencia = anterior.get("fin") or anterior.get("fecha_hora")
-                referencia = referencia.astimezone(colombia)
-
-                minutos_post = int((fin - referencia).total_seconds() // 60)
-
-                if minutos_post >= 0:
-                    st.caption(f"🧭 Este corte ocurrió {minutos_post} min después del anterior")
-
-            except:
-                pass
-
-        # =========================
-        # CIERRE UX
+        # CIERRE
         # =========================
         st.markdown("### ✔ Cerrado")
 
