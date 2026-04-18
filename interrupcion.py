@@ -70,7 +70,7 @@ def mostrar_interrupcion():
             ahora = datetime.now(colombia)
             minutos = int((ahora - referencia).total_seconds() // 60)
 
-            st.success(f"🧭 {minutos} min sin caer")
+            st.success(f"{minutos} min desde la última vez")
 
         except:
             pass
