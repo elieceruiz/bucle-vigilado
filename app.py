@@ -1,3 +1,5 @@
+# app.py
+
 import streamlit as st
 from datetime import datetime, timedelta
 
@@ -63,6 +65,19 @@ seleccion = st.selectbox(
 opcion = eventos[seleccion]
 
 # =========================
+# RESET INTERRUPCIÓN SI SALES
+# =========================
+if opcion != "interrupcion":
+    for k in [
+        "paso_interrupcion",
+        "interrupcion_inicio",
+        "interrupcion_fin",
+        "interrupcion_texto"
+    ]:
+        if k in st.session_state:
+            del st.session_state[k]
+
+# =========================
 # 🔴 INTERRUPCIÓN (NEIL)
 # =========================
 if opcion == "interrupcion":
@@ -86,7 +101,6 @@ elif opcion in [EVENTO_A, EVENTO_B]:
 # =========================
 elif opcion == "viaje_tiempo":
 
-    # Mostrar confirmación si existe
     if "mensaje_guardado" in st.session_state:
 
         msg = st.session_state["mensaje_guardado"]
@@ -98,9 +112,6 @@ elif opcion == "viaje_tiempo":
 
         st.session_state["borrar_mensaje"] = True
 
-    # =========================
-    # CAPITAL YNAB
-    # =========================
     monto, objetivo, progreso = obtener_capital_desde_ynab()
 
     monto_formateado = (
@@ -112,9 +123,6 @@ elif opcion == "viaje_tiempo":
 
     st.markdown(f"**Capital detectado en YNAB:** {monto_formateado} COP")
 
-    # =========================
-    # VENTAJA TEMPORAL
-    # =========================
     tiempo_humano = minutos_a_tiempo_humano(round(monto))
 
     st.markdown("### ⏳ Ventaja temporal")
@@ -139,9 +147,6 @@ elif opcion == "viaje_tiempo":
     st.progress(min(max(progreso / 100, 0), 1))
     st.caption(f"{progreso}% del objetivo alcanzado")
 
-    # =========================
-    # LÓGICA DE TIEMPO
-    # =========================
     if monto > 0:
 
         minutos_actuales = obtener_minutos_evento_b()
@@ -173,7 +178,6 @@ elif opcion == "viaje_tiempo":
             st.warning(f"Atraso detectado: {atraso} minutos")
             st.markdown(f"**Capital:** {monto_formateado} COP")
 
-        # GUARDAR
         if "mensaje_guardado" not in st.session_state:
 
             if st.button("Guardar estado"):
@@ -191,7 +195,6 @@ elif opcion == "viaje_tiempo":
 
                 st.rerun()
 
-    # limpiar mensaje
     if st.session_state.get("borrar_mensaje"):
         del st.session_state["mensaje_guardado"]
         del st.session_state["borrar_mensaje"]
