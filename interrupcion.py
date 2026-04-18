@@ -15,7 +15,7 @@ def guardar_interrupcion(data):
 def mostrar_interrupcion():
 
     # =========================
-    # AUTOREFRESH (TIEMPO VIVO)
+    # AUTOREFRESH
     # =========================
     st_autorefresh(interval=1000, key="refresh_interrupcion")
 
@@ -55,10 +55,10 @@ def mostrar_interrupcion():
     ]
 
     # =========================
-    # ÚLTIMO REGISTRO VÁLIDO
+    # ÚLTIMO REGISTRO (ROBUSTO)
     # =========================
     ultimo_valido = coleccion_eventos.find_one(
-        {"evento": "interrupcion", "fin": {"$ne": None}},
+        {"evento": "interrupcion"},
         sort=[("fecha_hora", -1)]
     )
 
@@ -75,15 +75,16 @@ def mostrar_interrupcion():
         return
 
     # =========================
-    # INICIO (CON TIEMPO ARRIBA)
+    # INICIO (CON TIEMPO)
     # =========================
     if paso == 0:
         st.markdown("## 🔴 Interrupción")
 
-        # 🔥 TIEMPO AQUÍ (VISIBLE)
         if ultimo_valido:
             try:
-                segundos = int((datetime.now(colombia) - ultimo_valido["fin"]).total_seconds())
+                referencia = ultimo_valido.get("fin") or ultimo_valido.get("fecha_hora")
+
+                segundos = int((datetime.now(colombia) - referencia).total_seconds())
                 minutos = segundos // 60
 
                 st.metric("🧭 Tiempo sin caer", f"{minutos} min")
@@ -144,6 +145,7 @@ def mostrar_interrupcion():
         inicio = st.session_state.get("interrupcion_inicio")
         fin = st.session_state.get("interrupcion_fin")
 
+        # DURACIÓN
         duracion_min = None
         if inicio and fin:
             try:
@@ -151,13 +153,16 @@ def mostrar_interrupcion():
             except:
                 pass
 
+        # GAP (robusto)
         gap_min = None
         if ultimo_valido and inicio:
             try:
-                gap_min = int((inicio - ultimo_valido["fin"]).total_seconds() // 60)
+                referencia = ultimo_valido.get("fin") or ultimo_valido.get("fecha_hora")
+                gap_min = int((inicio - referencia).total_seconds() // 60)
             except:
                 pass
 
+        # GUARDAR
         if not st.session_state["interrupcion_guardada"]:
             guardar_interrupcion({
                 "evento": "interrupcion",
@@ -181,15 +186,17 @@ def mostrar_interrupcion():
         else:
             st.caption("Primer registro de seguimiento")
 
+        # CONTEXTO FINAL
         if ultimo_valido and fin:
             try:
-                minutos_post = int((fin - ultimo_valido["fin"]).total_seconds() // 60)
+                referencia = ultimo_valido.get("fin") or ultimo_valido.get("fecha_hora")
+                minutos_post = int((fin - referencia).total_seconds() // 60)
                 st.caption(f"🧭 Este corte ocurrió {minutos_post} min después del anterior")
             except:
                 pass
 
         # =========================
-        # CIERRE UX
+        # CIERRE
         # =========================
         st.markdown("### ✔ Cerrado")
 
