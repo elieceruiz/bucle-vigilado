@@ -2,7 +2,7 @@
 
 import streamlit as st
 from datetime import datetime
-from streamlit_autorefresh import st_autorefresh  # 👈 NUEVO
+from streamlit_autorefresh import st_autorefresh
 
 from db import coleccion_eventos
 from config import colombia
@@ -15,10 +15,13 @@ def guardar_interrupcion(data):
 def mostrar_interrupcion():
 
     # =========================
-    # AUTOREFRESH SOLO AQUÍ
+    # AUTOREFRESH
     # =========================
-    st_autorefresh(interval=1000, key="refresh_interrupcion")  # 👈 NUEVO
+    st_autorefresh(interval=1000, key="refresh_interrupcion")
 
+    # =========================
+    # INIT
+    # =========================
     if "paso_interrupcion" not in st.session_state:
         st.session_state["paso_interrupcion"] = 0
 
@@ -134,6 +137,7 @@ def mostrar_interrupcion():
         inicio = st.session_state.get("interrupcion_inicio")
         fin = st.session_state.get("interrupcion_fin")
 
+        # DURACIÓN
         duracion_min = None
         if inicio and fin:
             try:
@@ -141,6 +145,7 @@ def mostrar_interrupcion():
             except:
                 pass
 
+        # GAP
         gap_min = None
         if ultimo_valido and inicio:
             try:
@@ -148,6 +153,7 @@ def mostrar_interrupcion():
             except:
                 pass
 
+        # GUARDAR
         if not st.session_state["interrupcion_guardada"]:
             guardar_interrupcion({
                 "evento": "interrupcion",
@@ -160,14 +166,30 @@ def mostrar_interrupcion():
             })
             st.session_state["interrupcion_guardada"] = True
 
+        # =========================
+        # FEEDBACK
+        # =========================
         if duracion_min is not None:
-            st.success(f"⏱️ {duracion_min} min sin caer")
+            st.success(f"⏱️ Impulso duró {duracion_min} min")
 
         if gap_min is not None:
             st.info(f"Desde el anterior: {gap_min} min")
         else:
             st.caption("Primer registro de seguimiento")
 
+        # =========================
+        # CONTEXTO FINAL (CLAVE)
+        # =========================
+        if ultimo_valido and fin:
+            try:
+                minutos_post = int((fin - ultimo_valido["fin"]).total_seconds() // 60)
+                st.caption(f"🧭 Este corte ocurrió {minutos_post} min después del anterior")
+            except:
+                pass
+
+        # =========================
+        # CIERRE UX
+        # =========================
         st.markdown("### ✔ Cerrado")
 
         col1, col2 = st.columns(2)
