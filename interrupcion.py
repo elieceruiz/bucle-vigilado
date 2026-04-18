@@ -7,21 +7,12 @@ from db import coleccion_eventos
 from config import colombia
 
 
-# =========================
-# REGISTRO FINAL
-# =========================
 def guardar_interrupcion(data):
     coleccion_eventos.insert_one(data)
 
 
-# =========================
-# FLUJO LINEAL
-# =========================
 def mostrar_interrupcion():
 
-    # =========================
-    # INIT
-    # =========================
     if "paso_interrupcion" not in st.session_state:
         st.session_state["paso_interrupcion"] = 0
 
@@ -42,9 +33,6 @@ def mostrar_interrupcion():
 
     paso = st.session_state["paso_interrupcion"]
 
-    # =========================
-    # PASOS DEL LIBRETO
-    # =========================
     flujo = [
         "A punto de abrir Edge.",
         "Pestaña en incógnito.",
@@ -57,9 +45,19 @@ def mostrar_interrupcion():
         "Encuentro."
     ]
 
-    # =========================
-    # BLOQUEO SI YA CERRÓ
-    # =========================
+    # TIEMPO DESDE ÚLTIMO
+    ultimo_valido = coleccion_eventos.find_one(
+        {"evento": "interrupcion", "fin": {"$ne": None}},
+        sort=[("fecha_hora", -1)]
+    )
+
+    if ultimo_valido:
+        try:
+            minutos = int((datetime.now(colombia) - ultimo_valido["fin"]).total_seconds() // 60)
+            st.info(f"🧭 Llevas {minutos} min desde el último impulso")
+        except:
+            pass
+
     if st.session_state["interrupcion_cerrada"]:
         st.success("✔ Interrupción cerrada")
 
@@ -69,9 +67,6 @@ def mostrar_interrupcion():
 
         return
 
-    # =========================
-    # INICIO
-    # =========================
     if paso == 0:
         st.markdown("## 🔴 Interrupción")
 
@@ -80,13 +75,9 @@ def mostrar_interrupcion():
             st.session_state["paso_interrupcion"] = 1
             st.rerun()
 
-    # =========================
-    # LIBRETO
-    # =========================
     elif 1 <= paso <= len(flujo):
 
-        texto = flujo[paso - 1]
-        st.write(texto)
+        st.write(flujo[paso - 1])
 
         if paso < len(flujo):
             if st.button("¿Y luego?"):
@@ -95,6 +86,7 @@ def mostrar_interrupcion():
 
         else:
             st.markdown("### ¿Cómo quedaría o he quedado?")
+            st.caption("Sé directo. Qué pasó y cómo te sentiste.")
 
             st.session_state["interrupcion_texto"] = st.text_area(
                 "",
@@ -105,9 +97,6 @@ def mostrar_interrupcion():
                 st.session_state["paso_interrupcion"] += 1
                 st.rerun()
 
-    # =========================
-    # CORTE
-    # =========================
     elif paso == len(flujo) + 1:
 
         st.write("Ya sabés cómo termina")
@@ -117,49 +106,27 @@ def mostrar_interrupcion():
             st.session_state["paso_interrupcion"] += 1
             st.rerun()
 
-    # =========================
-    # CÁLCULO Y GUARDADO
-    # =========================
     elif paso == len(flujo) + 2:
 
         inicio = st.session_state.get("interrupcion_inicio")
         fin = st.session_state.get("interrupcion_fin")
 
-        # =========================
-        # DURACIÓN
-        # =========================
         duracion_min = None
         if inicio and fin:
             try:
                 duracion_min = int((fin - inicio).total_seconds() // 60)
             except:
-                duracion_min = None
+                pass
 
-        # =========================
-        # GAP
-        # =========================
         gap_min = None
+        if ultimo_valido and inicio:
+            try:
+                gap_min = int((inicio - ultimo_valido["fin"]).total_seconds() // 60)
+            except:
+                pass
 
-        ultimo = coleccion_eventos.find_one(
-            {"evento": "interrupcion"},
-            sort=[("fecha_hora", -1)]
-        )
-
-        if ultimo:
-            fin_anterior = ultimo.get("fin")
-
-            if inicio and fin_anterior:
-                try:
-                    gap_min = int((inicio - fin_anterior).total_seconds() // 60)
-                except:
-                    gap_min = None
-
-        # =========================
-        # GUARDAR (UNA SOLA VEZ)
-        # =========================
         if not st.session_state["interrupcion_guardada"]:
-
-            data = {
+            guardar_interrupcion({
                 "evento": "interrupcion",
                 "inicio": inicio,
                 "fin": fin,
@@ -167,34 +134,23 @@ def mostrar_interrupcion():
                 "desde_anterior_min": gap_min,
                 "texto": st.session_state.get("interrupcion_texto", ""),
                 "fecha_hora": fin or datetime.now(colombia)
-            }
-
-            guardar_interrupcion(data)
+            })
             st.session_state["interrupcion_guardada"] = True
 
-        # =========================
-        # FEEDBACK
-        # =========================
         if duracion_min is not None:
-            st.success(f"Duración del impulso: {duracion_min} min")
-        else:
-            st.warning("Duración no disponible")
+            st.success(f"⏱️ {duracion_min} min sin caer")
 
         if gap_min is not None:
-            st.info(f"Tiempo desde el anterior: {gap_min} min")
+            st.info(f"Desde el anterior: {gap_min} min")
         else:
-            st.caption("Sin registro anterior")
+            st.caption("Primer registro de seguimiento")
 
-        # =========================
-        # CIERRE UX
-        # =========================
-        st.markdown("---")
         st.markdown("### ✔ Cerrado")
 
         col1, col2 = st.columns(2)
 
         with col1:
-            if st.button("Listo"):
+            if st.button("✔ Cerrar"):
                 st.session_state["interrupcion_cerrada"] = True
                 st.rerun()
 
