@@ -26,6 +26,9 @@ def mostrar_interrupcion():
     if "interrupcion_inicio" not in st.session_state:
         st.session_state["interrupcion_inicio"] = None
 
+    if "interrupcion_fin" not in st.session_state:
+        st.session_state["interrupcion_fin"] = None
+
     if "interrupcion_texto" not in st.session_state:
         st.session_state["interrupcion_texto"] = ""
 
@@ -72,7 +75,7 @@ def mostrar_interrupcion():
 
         else:
             # =========================
-            # PUNTO CLAVE (TEXTO)
+            # TEXTO FINAL
             # =========================
             st.markdown("### ¿Cómo quedaría o he quedado?")
 
@@ -105,23 +108,34 @@ def mostrar_interrupcion():
         inicio = st.session_state.get("interrupcion_inicio")
         fin = st.session_state.get("interrupcion_fin")
 
+        # =========================
+        # DURACIÓN (SEGURA)
+        # =========================
+        duracion_min = None
         if inicio and fin:
-            duracion_min = int((fin - inicio).total_seconds() // 60)
-        else:
-            duracion_min = None
+            try:
+                duracion_min = int((fin - inicio).total_seconds() // 60)
+            except:
+                duracion_min = None
 
         # =========================
-        # GAP DESDE ANTERIOR
+        # GAP DESDE ANTERIOR (BLINDADO)
         # =========================
+        gap_min = None
+
         ultimo = coleccion_eventos.find_one(
             {"evento": "interrupcion"},
             sort=[("fecha_hora", -1)]
         )
 
-        if ultimo and "fin" in ultimo:
-            gap_min = int((inicio - ultimo["fin"]).total_seconds() // 60)
-        else:
-            gap_min = None
+        if ultimo:
+            fin_anterior = ultimo.get("fin")
+
+            if inicio and fin_anterior:
+                try:
+                    gap_min = int((inicio - fin_anterior).total_seconds() // 60)
+                except:
+                    gap_min = None
 
         # =========================
         # GUARDAR
@@ -133,15 +147,23 @@ def mostrar_interrupcion():
             "duracion_min": duracion_min,
             "desde_anterior_min": gap_min,
             "texto": st.session_state.get("interrupcion_texto", ""),
-            "fecha_hora": fin
+            "fecha_hora": fin or datetime.now(colombia)  # fallback
         }
 
         guardar_interrupcion(data)
 
-        st.success(f"Duración del impulso: {duracion_min} min")
+        # =========================
+        # FEEDBACK
+        # =========================
+        if duracion_min is not None:
+            st.success(f"Duración del impulso: {duracion_min} min")
+        else:
+            st.warning("Duración no disponible")
 
         if gap_min is not None:
             st.info(f"Tiempo desde el anterior: {gap_min} min")
+        else:
+            st.caption("Sin registro anterior")
 
         # =========================
         # RESET
