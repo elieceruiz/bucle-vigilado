@@ -43,6 +43,25 @@ eventos = {
 }
 
 # =========================
+# SELECTOR CONTROLADO
+# =========================
+if "seleccion" not in st.session_state:
+    st.session_state["seleccion"] = list(eventos.keys())[0]
+
+# Redirección desde interrupción
+if st.session_state.get("ir_historial"):
+    st.session_state["seleccion"] = "📑 Historial"
+    del st.session_state["ir_historial"]
+
+seleccion = st.selectbox(
+    "Seleccioná qué registrar o consultar:",
+    list(eventos.keys()),
+    key="seleccion"
+)
+
+opcion = eventos[seleccion]
+
+# =========================
 # CARGA ESTADO INICIAL
 # =========================
 for ev in [EVENTO_A, EVENTO_B]:
@@ -55,16 +74,6 @@ for ev in [EVENTO_A, EVENTO_B]:
             st.session_state[ev] = ultimo["fecha_hora"].astimezone(colombia)
 
 # =========================
-# SELECTOR
-# =========================
-seleccion = st.selectbox(
-    "Seleccioná qué registrar o consultar:",
-    list(eventos.keys())
-)
-
-opcion = eventos[seleccion]
-
-# =========================
 # RESET INTERRUPCIÓN SI SALES
 # =========================
 if opcion != "interrupcion":
@@ -72,7 +81,9 @@ if opcion != "interrupcion":
         "paso_interrupcion",
         "interrupcion_inicio",
         "interrupcion_fin",
-        "interrupcion_texto"
+        "interrupcion_texto",
+        "interrupcion_cerrada",
+        "interrupcion_guardada"
     ]:
         if k in st.session_state:
             del st.session_state[k]
@@ -190,123 +201,3 @@ elif opcion == "viaje_tiempo":
     if st.session_state.get("borrar_mensaje"):
         del st.session_state["mensaje_guardado"]
         del st.session_state["borrar_mensaje"]
-
-# =========================
-# 🧠 REFLEXIONES
-# =========================
-elif opcion == "reflexion":
-
-    if "mensaje_reflexion" in st.session_state:
-        msg = st.session_state["mensaje_reflexion"]
-
-        st.success("🧠 Reflexión registrada")
-        st.markdown(f"**Reflexión:** {msg['texto']}")
-        st.markdown(f"**Categoría:** {msg['categoria']}")
-
-        del st.session_state["mensaje_reflexion"]
-
-    if st.session_state.get("limpiar_reflexion", False):
-        st.session_state["texto_reflexion"] = ""
-        st.session_state["emociones_reflexion"] = []
-        st.session_state["limpiar_reflexion"] = False
-
-    emociones = st.multiselect(
-        "¿Cómo te sentías?",
-        ["😰 Ansioso", "😡 Irritado", "💪 Firme", "😌 Aliviado",
-         "😓 Culpable", "🥱 Apático", "😔 Triste"],
-        key="emociones_reflexion"
-    )
-
-    texto = st.text_area("¿Querés dejar algo escrito?", key="texto_reflexion")
-
-    if (texto.strip() or emociones) and st.button("📝 Guardar reflexión"):
-
-        categoria = guardar_reflexion(datetime.now(colombia), emociones, texto)
-
-        st.session_state["mensaje_reflexion"] = {
-            "texto": texto.strip(),
-            "categoria": categoria
-        }
-
-        st.session_state["limpiar_reflexion"] = True
-        st.rerun()
-
-# =========================
-# 📑 HISTORIAL
-# =========================
-elif opcion == "historial":
-
-    tabs = st.tabs(["🧠", "✊🏽", "💸", "🧭"])
-
-    # =========================
-    # 🧠 REFLEXIONES + INTERRUPCIONES
-    # =========================
-    with tabs[0]:
-
-        # 🔹 INTERRUPCIONES
-        interrupciones = list(
-            coleccion_eventos.find({"evento": "interrupcion"})
-            .sort("fecha_hora", -1)
-        )
-
-        if interrupciones:
-            st.markdown("### 🔴 Interrupciones")
-
-            for r in interrupciones:
-                fecha = r["fecha_hora"].astimezone(colombia)
-
-                dur = r.get("duracion_min")
-                gap = r.get("desde_anterior_min")
-                texto = r.get("texto", "")
-
-                titulo = f"{fecha.strftime('%d-%m-%y %H:%M')}"
-
-                with st.expander(titulo):
-
-                    if dur is not None:
-                        st.markdown(f"**Duración:** {dur} min")
-
-                    if gap is not None:
-                        st.markdown(f"**Desde anterior:** {gap} min")
-
-                    if texto:
-                        if len(texto) > 300:
-                            st.write(texto[:300] + "...")
-                            with st.expander("Ver completo"):
-                                st.write(texto)
-                        else:
-                            st.write(texto)
-
-        # 🔹 REFLEXIONES
-        df = obtener_reflexiones()
-        st.markdown("### 🧠 Reflexiones")
-        st.caption(f"Total: {len(df)}")
-
-        for _, r in df.iterrows():
-            with st.expander(f"{r['Fecha']} {r['Hora']} {r['Emociones']}"):
-                st.write(r["Reflexión"])
-                st.divider()
-                st.markdown(f"**Categoría:** {r['Categoría']}")
-                st.markdown(f"**Subcategoría:** {r['Subcategoría']}")
-
-    # =========================
-    # ✊🏽 EVENTO A
-    # =========================
-    with tabs[1]:
-        st.dataframe(obtener_registros(EVENTO_A), use_container_width=True)
-
-    # =========================
-    # 💸 EVENTO B
-    # =========================
-    with tabs[2]:
-        st.dataframe(obtener_registros(EVENTO_B), use_container_width=True)
-
-    # =========================
-    # 🧭 CAPITAL
-    # =========================
-    with tabs[3]:
-        df_cap = obtener_historial_capital_b()
-        if not df_cap.empty:
-            st.dataframe(df_cap, use_container_width=True)
-        else:
-            st.info("Sin registros aún")
