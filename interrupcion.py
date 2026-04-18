@@ -55,26 +55,12 @@ def mostrar_interrupcion():
     ]
 
     # =========================
-    # TIEMPO DESDE ÚLTIMO (REAL + VIVO)
+    # ÚLTIMO REGISTRO VÁLIDO
     # =========================
     ultimo_valido = coleccion_eventos.find_one(
         {"evento": "interrupcion", "fin": {"$ne": None}},
         sort=[("fecha_hora", -1)]
     )
-
-    if ultimo_valido:
-        try:
-            segundos = int((datetime.now(colombia) - ultimo_valido["fin"]).total_seconds())
-            minutos = segundos // 60
-
-            st.metric("🧭 Tiempo sin caer", f"{minutos} min")
-
-            # barra continua (ciclo cada hora, sin metas)
-            progreso = (segundos % 3600) / 3600
-            st.progress(progreso)
-
-        except:
-            pass
 
     # =========================
     # BLOQUEO SI YA CERRÓ
@@ -89,10 +75,24 @@ def mostrar_interrupcion():
         return
 
     # =========================
-    # INICIO
+    # INICIO (CON TIEMPO ARRIBA)
     # =========================
     if paso == 0:
         st.markdown("## 🔴 Interrupción")
+
+        # 🔥 TIEMPO AQUÍ (VISIBLE)
+        if ultimo_valido:
+            try:
+                segundos = int((datetime.now(colombia) - ultimo_valido["fin"]).total_seconds())
+                minutos = segundos // 60
+
+                st.metric("🧭 Tiempo sin caer", f"{minutos} min")
+
+                progreso = (segundos % 3600) / 3600
+                st.progress(progreso)
+
+            except:
+                pass
 
         if st.button("🔘 Empezar"):
             st.session_state["interrupcion_inicio"] = datetime.now(colombia)
@@ -137,14 +137,13 @@ def mostrar_interrupcion():
             st.rerun()
 
     # =========================
-    # CÁLCULO Y GUARDADO
+    # CIERRE + GUARDADO
     # =========================
     elif paso == len(flujo) + 2:
 
         inicio = st.session_state.get("interrupcion_inicio")
         fin = st.session_state.get("interrupcion_fin")
 
-        # DURACIÓN DEL IMPULSO
         duracion_min = None
         if inicio and fin:
             try:
@@ -152,7 +151,6 @@ def mostrar_interrupcion():
             except:
                 pass
 
-        # TIEMPO DESDE EL ANTERIOR
         gap_min = None
         if ultimo_valido and inicio:
             try:
@@ -160,7 +158,6 @@ def mostrar_interrupcion():
             except:
                 pass
 
-        # GUARDAR (UNA VEZ)
         if not st.session_state["interrupcion_guardada"]:
             guardar_interrupcion({
                 "evento": "interrupcion",
@@ -184,7 +181,6 @@ def mostrar_interrupcion():
         else:
             st.caption("Primer registro de seguimiento")
 
-        # CONTEXTO FINAL
         if ultimo_valido and fin:
             try:
                 minutos_post = int((fin - ultimo_valido["fin"]).total_seconds() // 60)
@@ -193,7 +189,7 @@ def mostrar_interrupcion():
                 pass
 
         # =========================
-        # CIERRE
+        # CIERRE UX
         # =========================
         st.markdown("### ✔ Cerrado")
 
