@@ -1,5 +1,3 @@
-# interrupcion.py
-
 import streamlit as st
 from datetime import datetime
 
@@ -8,26 +6,45 @@ from config import colombia
 
 
 # =========================
-# REGISTRO
+# REGISTRO FINAL
 # =========================
-def registrar_interrupcion(tipo, extra=None):
-    coleccion_eventos.insert_one({
-        "evento": "interrupcion",
-        "tipo": tipo,
-        "extra": extra,
-        "fecha_hora": datetime.now(colombia)
-    })
+def guardar_interrupcion(data):
+    coleccion_eventos.insert_one(data)
 
 
 # =========================
-# FLUJO NEIL
+# FLUJO LINEAL
 # =========================
 def mostrar_interrupcion():
 
+    # =========================
+    # INIT
+    # =========================
     if "paso_interrupcion" not in st.session_state:
         st.session_state["paso_interrupcion"] = 0
 
+    if "interrupcion_inicio" not in st.session_state:
+        st.session_state["interrupcion_inicio"] = None
+
+    if "interrupcion_texto" not in st.session_state:
+        st.session_state["interrupcion_texto"] = ""
+
     paso = st.session_state["paso_interrupcion"]
+
+    # =========================
+    # PASOS DEL LIBRETO
+    # =========================
+    flujo = [
+        "A punto de abrir Edge.",
+        "Pestaña en incógnito.",
+        "Buscar.",
+        "Scrollear.",
+        "Elegir.",
+        "Escribirle.",
+        "Coordinar.",
+        "Pagar.",
+        "Encuentro."
+    ]
 
     # =========================
     # INICIO
@@ -35,136 +52,109 @@ def mostrar_interrupcion():
     if paso == 0:
         st.markdown("## 🔴 Interrupción")
 
-        if st.button("🔘 Estoy a punto"):
+        if st.button("🔘 Empezar"):
+            st.session_state["interrupcion_inicio"] = datetime.now(colombia)
             st.session_state["paso_interrupcion"] = 1
             st.rerun()
 
     # =========================
-    # CONTEXTO
+    # LIBRETO
     # =========================
-    elif paso == 1:
-        st.write("¿Qué está pasando ahora mismo?")
+    elif 1 <= paso <= len(flujo):
 
-        if st.button("Abrir incógnito"):
-            registrar_interrupcion("inicio", "incognito")
-            st.session_state["paso_interrupcion"] = 2
-            st.rerun()
+        texto = flujo[paso - 1]
+        st.write(texto)
 
-        if st.button("Escribirle a alguien"):
-            registrar_interrupcion("inicio", "whatsapp")
-            st.session_state["paso_interrupcion"] = 2
-            st.rerun()
+        if paso < len(flujo):
+            if st.button("¿Y luego?"):
+                st.session_state["paso_interrupcion"] += 1
+                st.rerun()
 
-    # =========================
-    # CADENA 1
-    # =========================
-    elif paso == 2:
-        st.write("Si lo hacés… ¿qué pasa?")
+        else:
+            # =========================
+            # PUNTO CLAVE (TEXTO)
+            # =========================
+            st.markdown("### ¿Cómo quedaría o he quedado?")
 
-        if st.button("Scrollear perfiles"):
-            st.session_state["paso_interrupcion"] = 3
-            st.rerun()
+            st.session_state["interrupcion_texto"] = st.text_area(
+                "",
+                value=st.session_state["interrupcion_texto"]
+            )
 
-    # =========================
-    # CADENA 2
-    # =========================
-    elif paso == 3:
-        st.write("¿Y después?")
-
-        if st.button("Contactar"):
-            st.session_state["paso_interrupcion"] = 4
-            st.rerun()
-
-    # =========================
-    # CONSECUENCIA
-    # =========================
-    elif paso == 4:
-        st.write("Después de todo… ¿cómo te sentís?")
-
-        if st.button("Derrotado"):
-            registrar_interrupcion("resultado_anticipado", "derrota")
-            st.session_state["paso_interrupcion"] = 5
-            st.rerun()
-
-    # =========================
-    # RECONOCIMIENTO
-    # =========================
-    elif paso == 5:
-        st.write("Ya sabés cómo termina.")
-
-        if st.button("Sí, lo veo"):
-            st.session_state["paso_interrupcion"] = 6
-            st.rerun()
-
-    # =========================
-    # CONTEXTO FÍSICO
-    # =========================
-    elif paso == 6:
-        st.write("¿Dónde estás ahora mismo?")
-
-        if st.button("Solo, en mi cuarto, con el celular"):
-            st.session_state["paso_interrupcion"] = 7
-            st.rerun()
+            if st.button("Continuar"):
+                st.session_state["paso_interrupcion"] += 1
+                st.rerun()
 
     # =========================
     # CORTE
     # =========================
-    elif paso == 7:
-        st.write("Cortá el acceso ahora.")
+    elif paso == len(flujo) + 1:
 
-        if st.button("Modo avión"):
-            registrar_interrupcion("corte", "modo_avion")
-            st.session_state["paso_interrupcion"] = 8
-            st.rerun()
+        st.write("Ya sabés cómo termina")
 
-        if st.button("Apagar celular"):
-            registrar_interrupcion("corte", "apagar")
-            st.session_state["paso_interrupcion"] = 8
-            st.rerun()
-
-        if st.button("Cerrar Edge"):
-            registrar_interrupcion("corte", "cerrar_edge")
-            st.session_state["paso_interrupcion"] = 8
+        if st.button("🔴 Cortar"):
+            st.session_state["interrupcion_fin"] = datetime.now(colombia)
+            st.session_state["paso_interrupcion"] += 1
             st.rerun()
 
     # =========================
-    # REPORTE
+    # CÁLCULO Y GUARDADO
     # =========================
-    elif paso == 8:
-        st.write("Volviste. ¿Qué hiciste?")
+    elif paso == len(flujo) + 2:
 
-        if st.button("Caminé"):
-            registrar_interrupcion("post", "camine")
-            st.session_state["paso_interrupcion"] = 9
-            st.rerun()
+        inicio = st.session_state.get("interrupcion_inicio")
+        fin = st.session_state.get("interrupcion_fin")
 
-        if st.button("Nada (pero no caí)"):
-            registrar_interrupcion("post", "resisti")
-            st.session_state["paso_interrupcion"] = 9
-            st.rerun()
+        if inicio and fin:
+            duracion_min = int((fin - inicio).total_seconds() // 60)
+        else:
+            duracion_min = None
 
-    # =========================
-    # IMPULSO
-    # =========================
-    elif paso == 9:
-        st.write("¿El impulso bajó?")
+        # =========================
+        # GAP DESDE ANTERIOR
+        # =========================
+        ultimo = coleccion_eventos.find_one(
+            {"evento": "interrupcion"},
+            sort=[("fecha_hora", -1)]
+        )
 
-        if st.button("Sí"):
-            registrar_interrupcion("impulso", "bajo")
-            st.session_state["paso_interrupcion"] = 10
-            st.rerun()
+        if ultimo and "fin" in ultimo:
+            gap_min = int((inicio - ultimo["fin"]).total_seconds() // 60)
+        else:
+            gap_min = None
 
-        if st.button("Sigue"):
-            registrar_interrupcion("impulso", "igual")
-            st.session_state["paso_interrupcion"] = 10
-            st.rerun()
+        # =========================
+        # GUARDAR
+        # =========================
+        data = {
+            "evento": "interrupcion",
+            "inicio": inicio,
+            "fin": fin,
+            "duracion_min": duracion_min,
+            "desde_anterior_min": gap_min,
+            "texto": st.session_state.get("interrupcion_texto", ""),
+            "fecha_hora": fin
+        }
 
-    # =========================
-    # FINAL
-    # =========================
-    elif paso == 10:
-        st.success("Cortaste esto.")
+        guardar_interrupcion(data)
 
+        st.success(f"Duración del impulso: {duracion_min} min")
+
+        if gap_min is not None:
+            st.info(f"Tiempo desde el anterior: {gap_min} min")
+
+        # =========================
+        # RESET
+        # =========================
         if st.button("Listo"):
-            st.session_state["paso_interrupcion"] = 0
+
+            for k in [
+                "paso_interrupcion",
+                "interrupcion_inicio",
+                "interrupcion_fin",
+                "interrupcion_texto"
+            ]:
+                if k in st.session_state:
+                    del st.session_state[k]
+
             st.rerun()
